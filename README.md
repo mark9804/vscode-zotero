@@ -40,3 +40,7 @@ You can configure the citation picker behavior in VS Code settings:
 ## Requirements
 
 **IMPORTANT:** Zotero, with Better BibTeX installed, must be running while you use these.
+
+## Development
+
+Test files are in `playground/` (test.md, test.qmd). Press F5 to launch extension in debug mode with test.md open.
