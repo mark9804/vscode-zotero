@@ -22,13 +22,13 @@
         "watch": "tsc -watch -p ./",
         "lint": "eslint src --ext ts"
     },
-    "homepage": "https://github.com/mblode/vscode-zotero",
+    "homepage": "https://github.com/mvuorre/vscode-zotero",
     "bugs": {
-        "url": "https://github.com/mblode/vscode-zotero/issues"
+        "url": "https://github.com/mvuorre/vscode-zotero/issues"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/mblode/vscode-zotero.git"
+        "url": "https://github.com/mvuorre/vscode-zotero.git"
     },
     "icon": "images/icon.png",
     "engines": {
