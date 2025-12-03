@@ -1,14 +1,15 @@
-<a href="https://marketplace.visualstudio.com/items?itemName=mblode.zotero">
-  <img src="https://github.com/mblode/vscode-zotero/blob/master/images/icon.png?raw=true" alt="" width=100 height=100>
-</a>
+# Zotero Citation Picker
 
-# VS Code Citation Picker for Zotero
+[Positron](https://positron.posit.co/) (and other VS Code IDE) extension to insert citations from [Zotero](https://www.zotero.org/) to your document and its associated `.bib` file. Requires the [Better BibTeX](https://retorque.re/zotero-better-bibtex/) Zotero plugin.
 
-This package adds Zotero support to VS Code Markdown editing. To use it, you will need to have the Better BibTeX plugin installed in Zotero.
+Fork of <https://github.com/mblode/vscode-zotero> (no longer maintained).
 
 ## Features
 
-If you don't feel like typing citations out (and let's be honest, you don't), executing 'Zotero Citation Picker' will call up a citation picker which will insert these for you, formatted and all.
+Executing 'Zotero Citation Picker' will call up a citation picker. Use this to find your citation, and insert it into your document and its associated `.bib` file.
+
+- Activate via keyboard shortcut (<kbd>Option + Shift + Z</kbd>)
+- Activate via Command Palette (<kbd>Command + Shift + P</kbd>): Type "Zotero Citation Picker" and press enter.
 
 ### Two citation picker modes
 
@@ -31,15 +32,6 @@ You can configure the citation picker behavior in VS Code settings:
   - `tag:statistics` - Search by tags
   - `doi:10.1000` - Search by DOI
   - Multiple fields: `author:smith title:climate` - Search multiple fields simultaneously
-
-- Activate via Command Palette (command + shift + P): Type "Zotero Citation Picker" and press enter.
-- Activate via keyboard shortcut: Use alt+shift+z
-
-![Screenshot](images/screenshot.png)
-
-## Requirements
-
-**IMPORTANT:** Zotero, with Better BibTeX installed, must be running while you use these.
 
 ## Development
 
