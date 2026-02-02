@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.2.1
+
+- When no bibliography is specified in the document YAML front matter, the extension now checks for a bibliography file in `_quarto.yml` at the workspace root.
+
 ## 0.2.0
 
 - Inserting a citation now updates the .bib file if one is specified in the YAML front matter (`bibliography: <filename>.bib`)

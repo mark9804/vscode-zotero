@@ -71,15 +71,40 @@ class ErrorItem {
         this.alwaysShow = true; // Prevent VS Code from filtering this item
     }
 }
-// Extract bibliography file path from YAML front matter
-function extractBibliographyFile(documentText) {
+// Extract bibliography file path from YAML front matter or _quarto.yaml
+async function extractBibliographyFile(document) {
+    // First, check document's YAML front matter
+    const documentText = document.getText();
     const yamlMatch = documentText.match(/^---\s*\n([\s\S]*?)\n---/);
-    if (!yamlMatch) {
+    if (yamlMatch) {
+        const yamlContent = yamlMatch[1];
+        const bibliographyMatch = yamlContent.match(/bibliography:\s*([^\s\n]+)/);
+        if (bibliographyMatch) {
+            return {
+                bibFile: bibliographyMatch[1].replace(/["']/g, ''),
+                isFromQuartoYaml: false
+            };
+        }
+    }
+    // If not found, check for _quarto.yml or _quarto.yaml in workspace
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
         return null;
     }
-    const yamlContent = yamlMatch[1];
-    const bibliographyMatch = yamlContent.match(/bibliography:\s*([^\s\n]+)/);
-    return bibliographyMatch ? bibliographyMatch[1].replace(/["']/g, '') : null;
+    for (const quartoFile of ['_quarto.yml', '_quarto.yaml']) {
+        const quartoPath = path.join(workspaceFolder.uri.fsPath, quartoFile);
+        if (fs.existsSync(quartoPath)) {
+            const quartoContent = fs.readFileSync(quartoPath, 'utf8');
+            const bibliographyMatch = quartoContent.match(/bibliography:\s*([^\s\n]+)/);
+            if (bibliographyMatch) {
+                return {
+                    bibFile: bibliographyMatch[1].replace(/["']/g, ''),
+                    isFromQuartoYaml: true
+                };
+            }
+        }
+    }
+    return null;
 }
 // Extract citation key from citation text (e.g., @key or [@key] -> key)
 function extractCitationKey(citationText) {
@@ -310,15 +335,24 @@ async function insertCitation(citation) {
         });
     });
     // Update .bib file
-    const documentText = editor.document.getText();
-    const bibFile = extractBibliographyFile(documentText);
-    if (bibFile) {
+    const bibInfo = await extractBibliographyFile(editor.document);
+    if (bibInfo) {
         const citeKey = extractCitationKey(citation);
         if (citeKey) {
             const bibEntry = await getBibTeXEntry(citeKey);
             if (bibEntry) {
-                const documentDir = path.dirname(editor.document.uri.fsPath);
-                const bibFilePath = path.resolve(documentDir, bibFile);
+                // Determine base path based on where bibliography is defined
+                let basePath;
+                if (bibInfo.isFromQuartoYaml) {
+                    // Bibliography from _quarto.yaml, use workspace root
+                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+                    basePath = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(editor.document.uri.fsPath);
+                }
+                else {
+                    // Bibliography from document's YAML front matter, use document's directory
+                    basePath = path.dirname(editor.document.uri.fsPath);
+                }
+                const bibFilePath = path.resolve(basePath, bibInfo.bibFile);
                 await updateBibFile(bibFilePath, bibEntry, citeKey);
             }
         }
