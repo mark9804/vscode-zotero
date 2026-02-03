@@ -1,8 +1,10 @@
 .PHONY: lint build package check notes tag release
 
+NAME := $(shell node -p "require('./package.json').name")
 VERSION := $(shell node -p "require('./package.json').version")
 TAG := v$(VERSION)
 NOTES_FILE := /tmp/zotero-release-notes.txt
+VSIX := $(NAME)-$(VERSION).vsix
 
 lint:
 	npm run lint
@@ -24,4 +26,4 @@ tag:
 
 release: check notes package tag
 	git push --tags
-	gh release create $(TAG) zotero-citation-picker-*.vsix --notes-file $(NOTES_FILE)
+	gh release create $(TAG) $(VSIX) --notes-file $(NOTES_FILE)
