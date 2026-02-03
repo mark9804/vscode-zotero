@@ -1,20 +1,20 @@
 {
-    "name": "zotero",
+    "name": "zotero-citation-picker",
     "displayName": "Citation Picker for Zotero",
     "description": "Zotero Better Bibtex citation picker for VS Code",
     "version": "0.2.1",
-    "publisher": "mblode",
+    "publisher": "mvuorre",
     "author": {
-        "name": "Matthew Blode",
-        "email": "m@blode.co",
-        "url": "https://matthewblode.com"
+        "name": "Matti Vuorre",
+        "email": "mjvuorre@uvt.nl",
+        "url": "https://vuorre.com"
     },
     "contributors": [
-    {
-        "name" : "Matti Vuorre",
-        "email" : "mjvuorre@uvt.nl",
-        "url" : "https://vuorre.com"
-    }
+        {
+            "name": "Matthew Blode",
+            "email": "m@blode.co",
+            "url": "https://matthewblode.com"
+        }
     ],
     "scripts": {
         "vscode:prepublish": "npm run compile",

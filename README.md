@@ -2,7 +2,7 @@
 
 [Positron](https://positron.posit.co/) (and other VS Code IDE) extension to insert citations from [Zotero](https://www.zotero.org/) to your document and its associated `.bib` file. Requires the [Better BibTeX](https://retorque.re/zotero-better-bibtex/) Zotero plugin.
 
-Fork of <https://github.com/mblode/vscode-zotero> (no longer maintained).
+Fork of <https://github.com/mblode/vscode-zotero>, which appears no longer maintained.
 
 ## Features
 
