@@ -2,7 +2,7 @@
     "name": "zotero-citation-picker",
     "displayName": "Citation Picker for Zotero",
     "description": "Zotero Better Bibtex citation picker for VS Code",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "publisher": "mvuorre",
     "author": {
         "name": "Matti Vuorre",
@@ -51,28 +51,12 @@
             {
                 "command": "extension.zoteroCitationPicker",
                 "title": "Zotero Citation Picker"
-            },
-            {
-                "command": "extension.openInZotero",
-                "title": "Open in Zotero"
-            },
-            {
-                "command": "extension.openPDFZotero",
-                "title": "Open PDF from Zotero"
             }
         ],
         "keybindings": [
             {
                 "command": "extension.zoteroCitationPicker",
                 "key": "alt+shift+z"
-            },
-            {
-                "command": "extension.openInZotero",
-                "key": "ctrl+shift+z"
-            },
-            {
-                "command": "extension.openPDFZotero",
-                "key": "ctrl+alt+shift+z"
             }
         ],
         "configuration": {

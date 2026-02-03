@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.3.0
+
+- Remove unused functions "openInZotero" and "openPDFZotero"
+- Update metadata with new maintainer info
+
 ## 0.2.1
 
 - When no bibliography is specified in the document YAML front matter, the extension now checks for a bibliography file in `_quarto.yml` at the workspace root.
