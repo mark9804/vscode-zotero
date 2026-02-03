@@ -31,7 +31,7 @@ class EntryItem implements vscode.QuickPickItem {
 
     if (result.author && result.author.length > 0) {
       const names = result.author.map(a => `${a.given || ''} ${a.family || ''}`.trim());
-      
+
       if (names.length === 1) {
         this.description = names[0];
       } else if (names.length === 2) {
@@ -108,7 +108,7 @@ function extractCitationKey(citationText: string): string | null {
   if (match) {
     return match[1];
   }
-  
+
   // Fallback to [@key] format
   match = citationText.match(/\[@([^\]]+)\]/);
   return match ? match[1] : null;
@@ -135,17 +135,17 @@ async function getBibEntry(citeKey: string, translator: string = 'Better BibTeX'
   try {
     const response: any = await requestPromise(options);
     let result = response.result || null;
-    
+
     // Strip YAML front matter wrapper for Better CSL YAML exports
     if (result && translator === 'Better CSL YAML') {
-      result = result.split('\n').slice(2, -2).join('\n')
+      result = result.split('\n').slice(2, -2).join('\n');
     }
-    
+
     // Strip array brackets for Better CSL JSON exports
     if (result && translator === 'Better CSL JSON') {
-      result = result.split('\n').slice(1, -2).join('\n')
+      result = result.split('\n').slice(1, -2).join('\n');
     }
-    
+
     return result;
   } catch (err) {
     console.log('Failed to fetch bibliography entry:', err);
@@ -156,12 +156,12 @@ async function getBibEntry(citeKey: string, translator: string = 'Better BibTeX'
 // Parse advanced search query into Better BibTeX search format
 function parseSearchQuery(query: string): string | Array<Array<string>> {
   const trimmedQuery = query.trim();
-  
+
   // Map common field names to Better BibTeX search fields
   const fieldMapping: { [key: string]: string } = {
     'author': 'creator',
     'creator': 'creator',
-    'title': 'title', 
+    'title': 'title',
     'year': 'date',
     'date': 'date',
     'journal': 'publicationTitle',
@@ -172,13 +172,13 @@ function parseSearchQuery(query: string): string | Array<Array<string>> {
     'isbn': 'ISBN',
     'type': 'itemType'
   };
-  
+
   // Check for field:value patterns
   const advancedSearchPatterns = trimmedQuery.match(/(\w+):("[^"]+"|[^\s]+)/g);
-  
+
   if (advancedSearchPatterns && advancedSearchPatterns.length > 0) {
     const searchConditions: Array<Array<string>> = [];
-    
+
     // Add field-specific searches
     for (const pattern of advancedSearchPatterns) {
       const match = pattern.match(/^(\w+):(.+)$/);
@@ -186,25 +186,25 @@ function parseSearchQuery(query: string): string | Array<Array<string>> {
         const [, field, value] = match;
         const searchField = fieldMapping[field.toLowerCase()] || field;
         const searchValue = value.replace(/^["']|["']$/g, '').trim(); // Remove quotes
-        
+
         searchConditions.push([searchField, 'contains', searchValue]);
       }
     }
-    
+
     // Extract any remaining text that's not in field:value format
     let remainingText = trimmedQuery;
     for (const pattern of advancedSearchPatterns) {
       remainingText = remainingText.replace(pattern, '').trim();
     }
-    
+
     // If there's remaining text, add it as a general search
     if (remainingText) {
       searchConditions.push(['quicksearch-titleCreatorYear', 'contains', remainingText]);
     }
-    
+
     return searchConditions;
   }
-  
+
   // For simple queries without field specifiers, use quicksearch-titleCreatorYear
   return [['quicksearch-titleCreatorYear', 'contains', trimmedQuery]];
 }
@@ -212,7 +212,7 @@ function parseSearchQuery(query: string): string | Array<Array<string>> {
 // Search Zotero database using Better BibTeX JSON-RPC
 async function searchZotero(query: string): Promise<SearchResult[]> {
   const searchTerms = parseSearchQuery(query);
-  
+
   const options = {
     method: 'POST',
     uri: 'http://localhost:23119/better-bibtex/json-rpc',
@@ -245,14 +245,14 @@ async function updateBibFile(bibFilePath: string, bibEntry: string, citeKey: str
   try {
     let bibContent = '';
     const fileExtension = path.extname(bibFilePath).toLowerCase();
-    
+
     // Read existing bibliography file if it exists
     if (fs.existsSync(bibFilePath)) {
       bibContent = fs.readFileSync(bibFilePath, 'utf8');
-      
+
       // Check if the citation key already exists (format depends on file type)
       let keyExists = false;
-      
+
       if (fileExtension === '.yml' || fileExtension === '.yaml') {
         // CSL YAML format: "- id: citekey"
         keyExists = new RegExp(`^\\s*-?\\s*id:\\s*['"]?${citeKey}['"]?\\s*$`, 'm').test(bibContent);
@@ -261,19 +261,19 @@ async function updateBibFile(bibFilePath: string, bibEntry: string, citeKey: str
         keyExists = new RegExp(`["']id["']\\s*:\\s*["']${citeKey}["']`, 'm').test(bibContent);
       } else {
         // BibTeX format: @type{citekey, or @type{citekey }
-        keyExists = bibContent.includes(`{${citeKey},`) || 
+        keyExists = bibContent.includes(`{${citeKey},`) ||
                     bibContent.includes(`{${citeKey} `);
       }
-      
+
       if (keyExists) {
         console.log(`Citation key ${citeKey} already exists in bibliography file`);
         return;
       }
     }
-    
+
     // Append new entry
     let newContent: string;
-    
+
     if (fileExtension === '.json') {
       // For JSON CSL formats, insert bibEntry into the array
       if (bibContent === '') {
@@ -290,9 +290,9 @@ async function updateBibFile(bibFilePath: string, bibEntry: string, citeKey: str
       // For other formats, append to end
       newContent = bibContent + (bibContent && !bibContent.endsWith('\n') ? '\n' : '') + bibEntry + '\n';
     }
-    
+
     fs.writeFileSync(bibFilePath, newContent, 'utf8');
-    
+
     console.log(`Added citation ${citeKey} to ${bibFilePath}`);
   } catch (err) {
     console.log('Failed to update bibliography file:', err);
@@ -305,11 +305,11 @@ async function showVSCodePicker(): Promise<void> {
   const picker = vscode.window.createQuickPick();
   picker.placeholder = 'Search for citations... (try "author:lastname" for advanced search)';
   picker.canSelectMany = false;
-  
+
   // Disable QuickPick's built-in filtering since we do our own search
   picker.matchOnDescription = false;
   picker.matchOnDetail = false;
-  
+
   let searchTimeout: NodeJS.Timeout | undefined;
   let currentSearchId = 0;
 
@@ -321,17 +321,17 @@ async function showVSCodePicker(): Promise<void> {
     }
 
     picker.busy = true;
-    
+
     try {
       const results = await searchZotero(query);
-      
+
       // Check if this search is still the current one (not superseded by a newer search)
       if (searchId === currentSearchId) {
         const items: EntryItem[] = results.map(result => new EntryItem(result));
-        
+
         // IMPORTANT: Set busy = false BEFORE setting items so they can be displayed
         picker.busy = false;
-        
+
         picker.items = items;
       } else {
         // Discard outdated search results
@@ -348,11 +348,11 @@ async function showVSCodePicker(): Promise<void> {
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
-    
+
     // Increment search ID to track the latest search
     currentSearchId++;
     const thisSearchId = currentSearchId;
-    
+
     searchTimeout = setTimeout(() => {
       performSearch(value, thisSearchId);
     }, 300); // Debounce search by 300ms
@@ -426,9 +426,9 @@ async function insertCitation(citation: string): Promise<void> {
           : fileExtension === '.json'
           ? 'Better CSL JSON'
           : 'Better BibTeX';
-      
+
       const bibEntry = await getBibEntry(citeKey, translator);
-      
+
       if (bibEntry) {
         // Determine base path based on where bibliography is defined
         let basePath: string;
