@@ -1,7 +1,8 @@
-.PHONY: lint build package check tag release
+.PHONY: lint build package check notes tag release
 
 VERSION := $(shell node -p "require('./package.json').version")
 TAG := v$(VERSION)
+NOTES_FILE := /tmp/zotero-release-notes.txt
 
 lint:
 	npm run lint
@@ -15,9 +16,12 @@ package: build
 check:
 	@rg -q "^##\\s+$(VERSION)\\b" CHANGELOG.md
 
+notes:
+	@awk '/^##[[:space:]]+'$(VERSION)'\\b/{flag=1;next} /^##[[:space:]]+/{flag=0} flag' CHANGELOG.md > $(NOTES_FILE)
+
 tag:
 	git tag -a $(TAG) -m "$(TAG)"
 
-release: check package tag
+release: check notes package tag
 	git push --tags
-	gh release create $(TAG) zotero-citation-picker-*.vsix --notes-from-tag
+	gh release create $(TAG) zotero-citation-picker-*.vsix --notes-file $(NOTES_FILE)
