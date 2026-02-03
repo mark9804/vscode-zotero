@@ -114,15 +114,15 @@ function extractCitationKey(citationText: string): string | null {
   return match ? match[1] : null;
 }
 
-// Get BibTeX entry from Zotero for a given citation key
-async function getBibTeXEntry(citeKey: string): Promise<string | null> {
+// Get Bib entry from Zotero for a given citation key
+async function getBibEntry(citeKey: string, translator: string = 'Better BibTeX'): Promise<string | null> {
   const options = {
     method: 'POST',
     uri: 'http://localhost:23119/better-bibtex/json-rpc',
     body: {
       'jsonrpc': '2.0',
       'method': 'item.export',
-      'params': [[citeKey], 'Better BibTeX']
+      'params': [[citeKey], translator]
     },
     headers: {
       'Content-Type': 'application/json',
@@ -134,9 +134,21 @@ async function getBibTeXEntry(citeKey: string): Promise<string | null> {
 
   try {
     const response: any = await requestPromise(options);
-    return response.result || null;
+    let result = response.result || null;
+    
+    // Strip YAML front matter wrapper for Better CSL YAML exports
+    if (result && translator === 'Better CSL YAML') {
+      result = result.split('\n').slice(2, -2).join('\n')
+    }
+    
+    // Strip array brackets for Better CSL JSON exports
+    if (result && translator === 'Better CSL JSON') {
+      result = result.split('\n').slice(1, -2).join('\n')
+    }
+    
+    return result;
   } catch (err) {
-    console.log('Failed to fetch BibTeX entry:', err);
+    console.log('Failed to fetch bibliography entry:', err);
     return null;
   }
 }
@@ -232,25 +244,58 @@ async function searchZotero(query: string): Promise<SearchResult[]> {
 async function updateBibFile(bibFilePath: string, bibEntry: string, citeKey: string): Promise<void> {
   try {
     let bibContent = '';
+    const fileExtension = path.extname(bibFilePath).toLowerCase();
     
-    // Read existing .bib file if it exists
+    // Read existing bibliography file if it exists
     if (fs.existsSync(bibFilePath)) {
       bibContent = fs.readFileSync(bibFilePath, 'utf8');
       
-      // Check if the citation key already exists
-      if (bibContent.includes(`{${citeKey},`) || bibContent.includes(`{${citeKey} `)) {
-        console.log(`Citation key ${citeKey} already exists in .bib file`);
+      // Check if the citation key already exists (format depends on file type)
+      let keyExists = false;
+      
+      if (fileExtension === '.yml' || fileExtension === '.yaml') {
+        // CSL YAML format: "- id: citekey"
+        keyExists = new RegExp(`^\\s*-?\\s*id:\\s*['"]?${citeKey}['"]?\\s*$`, 'm').test(bibContent);
+      } else if (fileExtension === '.json') {
+        // CSL JSON format: "id": "citekey" or 'id': 'citekey'
+        keyExists = new RegExp(`["']id["']\\s*:\\s*["']${citeKey}["']`, 'm').test(bibContent);
+      } else {
+        // BibTeX format: @type{citekey, or @type{citekey }
+        keyExists = bibContent.includes(`{${citeKey},`) || 
+                    bibContent.includes(`{${citeKey} `);
+      }
+      
+      if (keyExists) {
+        console.log(`Citation key ${citeKey} already exists in bibliography file`);
         return;
       }
     }
     
     // Append new entry
-    const newContent = bibContent + (bibContent && !bibContent.endsWith('\n') ? '\n' : '') + bibEntry + '\n';
+    let newContent: string;
+    
+    if (fileExtension === '.json') {
+      // For JSON CSL formats, insert bibEntry into the array
+      if (bibContent === '') {
+        // Initialize new json array
+        newContent = `[\n${bibEntry}\n]`;
+      } else {
+        // Insert at end of json array
+        const lastBracket = bibContent.lastIndexOf(']');
+        const beforeBracket = bibContent.substring(0, lastBracket).trimEnd();
+        const needsComma = beforeBracket && !beforeBracket.endsWith(',');
+        newContent = beforeBracket + (needsComma ? ',' : '') + '\n' + bibEntry + '\n]';
+      }
+    } else {
+      // For other formats, append to end
+      newContent = bibContent + (bibContent && !bibContent.endsWith('\n') ? '\n' : '') + bibEntry + '\n';
+    }
+    
     fs.writeFileSync(bibFilePath, newContent, 'utf8');
     
     console.log(`Added citation ${citeKey} to ${bibFilePath}`);
   } catch (err) {
-    console.log('Failed to update .bib file:', err);
+    console.log('Failed to update bibliography file:', err);
     vscode.window.showWarningMessage(`Failed to update bibliography file: ${err}`);
   }
 }
@@ -349,7 +394,7 @@ async function showZoteroPicker(): Promise<void> {
   }
 }
 
-// Insert citation and update .bib file
+// Insert citation and update bibliography file
 async function insertCitation(citation: string): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -372,8 +417,18 @@ async function insertCitation(citation: string): Promise<void> {
     const citeKey = extractCitationKey(citation);
 
     if (citeKey) {
-      const bibEntry = await getBibTeXEntry(citeKey);
+      // Determine translator based on file extension
+      const fileExtension = path.extname(bibInfo.bibFile).toLowerCase();
 
+      const translator =
+        fileExtension === '.yml' || fileExtension === '.yaml'
+          ? 'Better CSL YAML'
+          : fileExtension === '.json'
+          ? 'Better CSL JSON'
+          : 'Better BibTeX';
+      
+      const bibEntry = await getBibEntry(citeKey, translator);
+      
       if (bibEntry) {
         // Determine base path based on where bibliography is defined
         let basePath: string;
