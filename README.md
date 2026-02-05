@@ -33,6 +33,11 @@ You can configure the citation picker behavior in VS Code settings:
   - `doi:10.1000` - Search by DOI
   - Multiple fields: `author:smith title:climate` - Search multiple fields simultaneously
 
+## Contributing
+
+1. If you notice that something is wrong, or would like to add / edit features, submit an issue on GitHub <https://github.com/mvuorre/vscode-zotero/issues>
+2. Then, if you're able to fix the bug or add the feature yourself, submit a pull request on GitHub <https://github.com/mvuorre/vscode-zotero/pulls>
+
 ## Development
 
 Test files are in `playground/` (test.md, test.qmd). Press F5 to launch extension in debug mode with test.md open.
