@@ -56,12 +56,31 @@ class ErrorItem implements vscode.QuickPickItem {
   }
 }
 
-// Extract bibliography file path from YAML front matter or _quarto.yaml
+// Extract bibliography file path from LaTeX commands, YAML front matter, or _quarto.yaml
 async function extractBibliographyFile(
   document: vscode.TextDocument
 ): Promise<{ bibFile: string; isFromQuartoYaml: boolean } | null> {
-  // First, check document's YAML front matter
   const documentText = document.getText();
+
+  // For LaTeX files, check \bibliography{} and \addbibresource{} commands
+  if (document.languageId === 'latex') {
+    // \addbibresource{file.bib} (biblatex, usually includes extension)
+    let match = documentText.match(/\\addbibresource\{([^}]+)\}/);
+    if (match) {
+      return { bibFile: match[1], isFromQuartoYaml: false };
+    }
+    // \bibliography{name} (bibtex, no extension - defaults to .bib)
+    match = documentText.match(/\\bibliography\{([^}]+)\}/);
+    if (match) {
+      let bibFile = match[1];
+      if (!path.extname(bibFile)) {
+        bibFile += '.bib';
+      }
+      return { bibFile, isFromQuartoYaml: false };
+    }
+  }
+
+  // Check document's YAML front matter
   const yamlMatch = documentText.match(/^---\s*\n([\s\S]*?)\n---/);
 
   if (yamlMatch) {
