@@ -101,10 +101,16 @@ async function extractBibliographyFile(
   return null;
 }
 
-// Extract citation key from citation text (e.g., @key or [@key] -> key)
+// Extract citation key from citation text (e.g., @key, [@key], or \cite{key} -> key)
 function extractCitationKey(citationText: string): string | null {
-  // Try @key format first (what Zotero actually returns)
-  let match = citationText.match(/@([a-zA-Z0-9_-]+)/);
+  // Try \cite{key} format (LaTeX)
+  let match = citationText.match(/\\cite\{([^}]+)\}/);
+  if (match) {
+    return match[1];
+  }
+
+  // Try @key format (what Zotero actually returns)
+  match = citationText.match(/@([a-zA-Z0-9_-]+)/);
   if (match) {
     return match[1];
   }
@@ -112,6 +118,14 @@ function extractCitationKey(citationText: string): string | null {
   // Fallback to [@key] format
   match = citationText.match(/\[@([^\]]+)\]/);
   return match ? match[1] : null;
+}
+
+// Format citation based on document language
+function formatCitation(citekey: string, languageId: string): string {
+  if (languageId === 'latex') {
+    return `\\cite{${citekey}}`;
+  }
+  return `@${citekey}`;
 }
 
 // Get Bib entry from Zotero for a given citation key
@@ -361,7 +375,9 @@ async function showVSCodePicker(): Promise<void> {
   picker.onDidAccept(() => {
     const selection = picker.activeItems[0];
     if (selection && selection instanceof EntryItem) {
-      insertCitation(`@${selection.result.citekey}`);
+      const editor = vscode.window.activeTextEditor;
+      const langId = editor?.document.languageId || '';
+      insertCitation(formatCitation(selection.result.citekey, langId));
     }
     picker.hide();
   });
@@ -384,7 +400,16 @@ async function showZoteroPicker(): Promise<void> {
   const config: ZoteroConfig = vscode.workspace.getConfiguration('zotero-citation-picker') as any;
 
   try {
-    const result: string = await requestPromise(String(config.port));
+    const editor = vscode.window.activeTextEditor;
+    const langId = editor?.document.languageId || '';
+
+    // Use latex format for CAYW when editing LaTeX files
+    let url = String(config.port);
+    if (langId === 'latex') {
+      url = url.replace(/format=\w+/, 'format=latex');
+    }
+
+    const result: string = await requestPromise(url);
     if (result) {
       await insertCitation(result);
     }
