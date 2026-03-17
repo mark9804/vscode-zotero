@@ -1,15 +1,20 @@
 {
-    "name": "zotero-citation-picker",
-    "displayName": "Citation Picker for Zotero",
-    "description": "Zotero Better Bibtex citation picker for VS Code",
-    "version": "0.3.0",
-    "publisher": "mvuorre",
+    "name": "zotero-latex-cite",
+    "displayName": "Zotero LaTeX Citation Picker",
+    "description": "Zotero Better Bibtex citation picker for VS Code with LaTeX support",
+    "version": "0.1.0",
+    "publisher": "mark9804",
     "author": {
-        "name": "Matti Vuorre",
-        "email": "mjvuorre@uvt.nl",
-        "url": "https://vuorre.com"
+        "name": "mark9804",
+        "email": "mark.zhaolu.chen@rikkyo.ac.jp",
+        "url": "https://mark9804.github.io"
     },
     "contributors": [
+        {
+            "name": "Matti Vuorre",
+            "email": "mjvuorre@uvt.nl",
+            "url": "https://vuorre.com"
+        },
         {
             "name": "Matthew Blode",
             "email": "m@blode.co",
