@@ -1,9 +1,9 @@
-import * as vscode from 'vscode';
-import * as path from 'path';
+import * as vscode from "vscode";
+import * as path from "path";
 
 interface ZoteroConfig {
   port: number;
-  citeMethod?: 'zotero' | 'vscode';
+  citeMethod?: "zotero" | "vscode";
 }
 
 // Better BibTeX search result interface
@@ -11,7 +11,7 @@ interface SearchResult {
   type: string;
   citekey: string;
   title: string;
-  author?: [{ family: string, given: string }];
+  author?: [{ family: string; given: string }];
   [field: string]: any;
 }
 
@@ -23,22 +23,25 @@ class EntryItem implements vscode.QuickPickItem {
   alwaysShow?: boolean;
 
   constructor(public result: SearchResult) {
-    this.label = result.title || 'Untitled';
-    this.detail = result.citekey || '';
+    this.label = result.title || "Untitled";
+    this.detail = result.citekey || "";
     this.alwaysShow = true; // Prevent VS Code from filtering this item
 
     if (result.author && result.author.length > 0) {
-      const names = result.author.map(a => `${a.given || ''} ${a.family || ''}`.trim());
+      const names = result.author.map((a) =>
+        `${a.given || ""} ${a.family || ""}`.trim(),
+      );
 
       if (names.length === 1) {
         this.description = names[0];
       } else if (names.length === 2) {
-        this.description = names.join(' and ');
+        this.description = names.join(" and ");
       } else if (names.length > 2) {
-        this.description = names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
+        this.description =
+          names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
       }
     } else {
-      this.description = '';
+      this.description = "";
     }
   }
 }
@@ -49,12 +52,12 @@ class ErrorItem implements vscode.QuickPickItem {
   alwaysShow?: boolean;
 
   constructor(public message: string) {
-    this.label = message.replace(/\r?\n/g, ' ');
+    this.label = message.replace(/\r?\n/g, " ");
     this.alwaysShow = true; // Prevent VS Code from filtering this item
   }
 }
 
-const textDecoder = new TextDecoder('utf-8');
+const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
 
 // Read a file via vscode.workspace.fs (works across remote boundaries)
@@ -64,7 +67,10 @@ async function readWorkspaceFile(uri: vscode.Uri): Promise<string> {
 }
 
 // Write a file via vscode.workspace.fs (works across remote boundaries)
-async function writeWorkspaceFile(uri: vscode.Uri, content: string): Promise<void> {
+async function writeWorkspaceFile(
+  uri: vscode.Uri,
+  content: string,
+): Promise<void> {
   await vscode.workspace.fs.writeFile(uri, textEncoder.encode(content));
 }
 
@@ -80,32 +86,35 @@ async function fileExists(uri: vscode.Uri): Promise<boolean> {
 
 // Make a JSON-RPC request to Zotero Better BibTeX
 async function zoteroJsonRpc(method: string, params: any[]): Promise<any> {
-  const response = await fetch('http://127.0.0.1:23119/better-bibtex/json-rpc', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
+  const response = await fetch(
+    "http://127.0.0.1:23119/better-bibtex/json-rpc",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method, params }),
+      signal: AbortSignal.timeout(5000),
     },
-    body: JSON.stringify({ jsonrpc: '2.0', method, params }),
-    signal: AbortSignal.timeout(5000),
-  });
+  );
 
   if (!response.ok) {
     throw new Error(`Zotero HTTP error: ${response.status}`);
   }
 
-  const data = await response.json() as any;
+  const data = (await response.json()) as any;
   return data.result;
 }
 
 // Extract bibliography file path from LaTeX commands, YAML front matter, or _quarto.yaml
 async function extractBibliographyFile(
-  document: vscode.TextDocument
+  document: vscode.TextDocument,
 ): Promise<{ bibFile: string; isFromQuartoYaml: boolean } | null> {
   const documentText = document.getText();
 
   // For LaTeX files, check \bibliography{} and \addbibresource{} commands
-  if (document.languageId === 'latex') {
+  if (document.languageId === "latex") {
     // \addbibresource{file.bib} (biblatex, usually includes extension)
     let match = documentText.match(/\\addbibresource\{([^}]+)\}/);
     if (match) {
@@ -116,7 +125,7 @@ async function extractBibliographyFile(
     if (match) {
       let bibFile = match[1];
       if (!path.extname(bibFile)) {
-        bibFile += '.bib';
+        bibFile += ".bib";
       }
       return { bibFile, isFromQuartoYaml: false };
     }
@@ -131,8 +140,8 @@ async function extractBibliographyFile(
 
     if (bibliographyMatch) {
       return {
-        bibFile: bibliographyMatch[1].replace(/["']/g, ''),
-        isFromQuartoYaml: false
+        bibFile: bibliographyMatch[1].replace(/["']/g, ""),
+        isFromQuartoYaml: false,
       };
     }
   }
@@ -143,17 +152,19 @@ async function extractBibliographyFile(
     return null;
   }
 
-  for (const quartoFile of ['_quarto.yml', '_quarto.yaml']) {
+  for (const quartoFile of ["_quarto.yml", "_quarto.yaml"]) {
     const quartoUri = vscode.Uri.joinPath(workspaceFolder.uri, quartoFile);
 
     if (await fileExists(quartoUri)) {
       const quartoContent = await readWorkspaceFile(quartoUri);
-      const bibliographyMatch = quartoContent.match(/bibliography:\s*([^\s\n]+)/);
+      const bibliographyMatch = quartoContent.match(
+        /bibliography:\s*([^\s\n]+)/,
+      );
 
       if (bibliographyMatch) {
         return {
-          bibFile: bibliographyMatch[1].replace(/["']/g, ''),
-          isFromQuartoYaml: true
+          bibFile: bibliographyMatch[1].replace(/["']/g, ""),
+          isFromQuartoYaml: true,
         };
       }
     }
@@ -183,30 +194,36 @@ function extractCitationKey(citationText: string): string | null {
 
 // Format citation based on document language
 function formatCitation(citekey: string, languageId: string): string {
-  if (languageId === 'latex') {
+  if (languageId === "latex") {
     return `\\cite{${citekey}}`;
   }
   return `@${citekey}`;
 }
 
 // Get Bib entry from Zotero for a given citation key
-async function getBibEntry(citeKey: string, translator: string = 'Better BibTeX'): Promise<string | null> {
+async function getBibEntry(
+  citeKey: string,
+  translator: string = "Better BibTeX",
+): Promise<string | null> {
   try {
-    let result: string | null = await zoteroJsonRpc('item.export', [[citeKey], translator]);
+    let result: string | null = await zoteroJsonRpc("item.export", [
+      [citeKey],
+      translator,
+    ]);
 
     // Strip YAML front matter wrapper for Better CSL YAML exports
-    if (result && translator === 'Better CSL YAML') {
-      result = result.split('\n').slice(2, -2).join('\n');
+    if (result && translator === "Better CSL YAML") {
+      result = result.split("\n").slice(2, -2).join("\n");
     }
 
     // Strip array brackets for Better CSL JSON exports
-    if (result && translator === 'Better CSL JSON') {
-      result = result.split('\n').slice(1, -2).join('\n');
+    if (result && translator === "Better CSL JSON") {
+      result = result.split("\n").slice(1, -2).join("\n");
     }
 
     return result;
   } catch (err) {
-    console.log('Failed to fetch bibliography entry:', err);
+    console.log("Failed to fetch bibliography entry:", err);
     return null;
   }
 }
@@ -217,18 +234,18 @@ function parseSearchQuery(query: string): string | Array<Array<string>> {
 
   // Map common field names to Better BibTeX search fields
   const fieldMapping: { [key: string]: string } = {
-    'author': 'creator',
-    'creator': 'creator',
-    'title': 'title',
-    'year': 'date',
-    'date': 'date',
-    'journal': 'publicationTitle',
-    'publication': 'publicationTitle',
-    'tag': 'tag',
-    'note': 'note',
-    'doi': 'DOI',
-    'isbn': 'ISBN',
-    'type': 'itemType'
+    author: "creator",
+    creator: "creator",
+    title: "title",
+    year: "date",
+    date: "date",
+    journal: "publicationTitle",
+    publication: "publicationTitle",
+    tag: "tag",
+    note: "note",
+    doi: "DOI",
+    isbn: "ISBN",
+    type: "itemType",
   };
 
   // Check for field:value patterns
@@ -243,28 +260,32 @@ function parseSearchQuery(query: string): string | Array<Array<string>> {
       if (match) {
         const [, field, value] = match;
         const searchField = fieldMapping[field.toLowerCase()] || field;
-        const searchValue = value.replace(/^["']|["']$/g, '').trim(); // Remove quotes
+        const searchValue = value.replace(/^["']|["']$/g, "").trim(); // Remove quotes
 
-        searchConditions.push([searchField, 'contains', searchValue]);
+        searchConditions.push([searchField, "contains", searchValue]);
       }
     }
 
     // Extract any remaining text that's not in field:value format
     let remainingText = trimmedQuery;
     for (const pattern of advancedSearchPatterns) {
-      remainingText = remainingText.replace(pattern, '').trim();
+      remainingText = remainingText.replace(pattern, "").trim();
     }
 
     // If there's remaining text, add it as a general search
     if (remainingText) {
-      searchConditions.push(['quicksearch-titleCreatorYear', 'contains', remainingText]);
+      searchConditions.push([
+        "quicksearch-titleCreatorYear",
+        "contains",
+        remainingText,
+      ]);
     }
 
     return searchConditions;
   }
 
   // For simple queries without field specifiers, use quicksearch-titleCreatorYear
-  return [['quicksearch-titleCreatorYear', 'contains', trimmedQuery]];
+  return [["quicksearch-titleCreatorYear", "contains", trimmedQuery]];
 }
 
 // Search Zotero database using Better BibTeX JSON-RPC
@@ -272,18 +293,24 @@ async function searchZotero(query: string): Promise<SearchResult[]> {
   const searchTerms = parseSearchQuery(query);
 
   try {
-    const results = await zoteroJsonRpc('item.search', [searchTerms]);
+    const results = await zoteroJsonRpc("item.search", [searchTerms]);
     return results || [];
   } catch (err) {
-    console.log('Failed to search Zotero:', err);
-    throw new Error('Could not connect to Zotero. Is Zotero running with Better BibTeX?');
+    console.log("Failed to search Zotero:", err);
+    throw new Error(
+      "Could not connect to Zotero. Is Zotero running with Better BibTeX?",
+    );
   }
 }
 
 // Update .bib file with new entry (uses vscode.workspace.fs for remote support)
-async function updateBibFile(bibFileUri: vscode.Uri, bibEntry: string, citeKey: string): Promise<void> {
+async function updateBibFile(
+  bibFileUri: vscode.Uri,
+  bibEntry: string,
+  citeKey: string,
+): Promise<void> {
   try {
-    let bibContent = '';
+    let bibContent = "";
     const fileExtension = path.extname(bibFileUri.fsPath).toLowerCase();
 
     // Read existing bibliography file if it exists
@@ -293,20 +320,29 @@ async function updateBibFile(bibFileUri: vscode.Uri, bibEntry: string, citeKey: 
       // Check if the citation key already exists (format depends on file type)
       let keyExists = false;
 
-      if (fileExtension === '.yml' || fileExtension === '.yaml') {
+      if (fileExtension === ".yml" || fileExtension === ".yaml") {
         // CSL YAML format: "- id: citekey"
-        keyExists = new RegExp(`^\\s*-?\\s*id:\\s*['"]?${citeKey}['"]?\\s*$`, 'm').test(bibContent);
-      } else if (fileExtension === '.json') {
+        keyExists = new RegExp(
+          `^\\s*-?\\s*id:\\s*['"]?${citeKey}['"]?\\s*$`,
+          "m",
+        ).test(bibContent);
+      } else if (fileExtension === ".json") {
         // CSL JSON format: "id": "citekey" or 'id': 'citekey'
-        keyExists = new RegExp(`["']id["']\\s*:\\s*["']${citeKey}["']`, 'm').test(bibContent);
+        keyExists = new RegExp(
+          `["']id["']\\s*:\\s*["']${citeKey}["']`,
+          "m",
+        ).test(bibContent);
       } else {
         // BibTeX format: @type{citekey, or @type{citekey }
-        keyExists = bibContent.includes(`{${citeKey},`) ||
-                    bibContent.includes(`{${citeKey} `);
+        keyExists =
+          bibContent.includes(`{${citeKey},`) ||
+          bibContent.includes(`{${citeKey} `);
       }
 
       if (keyExists) {
-        console.log(`Citation key ${citeKey} already exists in bibliography file`);
+        console.log(
+          `Citation key ${citeKey} already exists in bibliography file`,
+        );
         return;
       }
     }
@@ -314,36 +350,44 @@ async function updateBibFile(bibFileUri: vscode.Uri, bibEntry: string, citeKey: 
     // Append new entry
     let newContent: string;
 
-    if (fileExtension === '.json') {
+    if (fileExtension === ".json") {
       // For JSON CSL formats, insert bibEntry into the array
-      if (bibContent === '') {
+      if (bibContent === "") {
         // Initialize new json array
         newContent = `[\n${bibEntry}\n]`;
       } else {
         // Insert at end of json array
-        const lastBracket = bibContent.lastIndexOf(']');
+        const lastBracket = bibContent.lastIndexOf("]");
         const beforeBracket = bibContent.substring(0, lastBracket).trimEnd();
-        const needsComma = beforeBracket && !beforeBracket.endsWith(',');
-        newContent = beforeBracket + (needsComma ? ',' : '') + '\n' + bibEntry + '\n]';
+        const needsComma = beforeBracket && !beforeBracket.endsWith(",");
+        newContent =
+          beforeBracket + (needsComma ? "," : "") + "\n" + bibEntry + "\n]";
       }
     } else {
       // For other formats, append to end
-      newContent = bibContent + (bibContent && !bibContent.endsWith('\n') ? '\n' : '') + bibEntry + '\n';
+      newContent =
+        bibContent +
+        (bibContent && !bibContent.endsWith("\n") ? "\n" : "") +
+        bibEntry +
+        "\n";
     }
 
     await writeWorkspaceFile(bibFileUri, newContent);
 
     console.log(`Added citation ${citeKey} to ${bibFileUri.fsPath}`);
   } catch (err) {
-    console.log('Failed to update bibliography file:', err);
-    vscode.window.showWarningMessage(`Failed to update bibliography file: ${err}`);
+    console.log("Failed to update bibliography file:", err);
+    vscode.window.showWarningMessage(
+      `Failed to update bibliography file: ${err}`,
+    );
   }
 }
 
 // Native VS Code citation picker using QuickPick
 async function showVSCodePicker(): Promise<void> {
   const picker = vscode.window.createQuickPick();
-  picker.placeholder = 'Search for citations... (try "author:lastname" for advanced search)';
+  picker.placeholder =
+    'Search for citations... (try "author:lastname" for advanced search)';
   picker.canSelectMany = false;
 
   // Disable QuickPick's built-in filtering since we do our own search
@@ -367,7 +411,9 @@ async function showVSCodePicker(): Promise<void> {
 
       // Check if this search is still the current one (not superseded by a newer search)
       if (searchId === currentSearchId) {
-        const items: EntryItem[] = results.map(result => new EntryItem(result));
+        const items: EntryItem[] = results.map(
+          (result) => new EntryItem(result),
+        );
 
         // IMPORTANT: Set busy = false BEFORE setting items so they can be displayed
         picker.busy = false;
@@ -384,7 +430,7 @@ async function showVSCodePicker(): Promise<void> {
     }
   };
 
-  picker.onDidChangeValue(value => {
+  picker.onDidChangeValue((value) => {
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
@@ -402,7 +448,7 @@ async function showVSCodePicker(): Promise<void> {
     const selection = picker.activeItems[0];
     if (selection && selection instanceof EntryItem) {
       const editor = vscode.window.activeTextEditor;
-      const langId = editor?.document.languageId || '';
+      const langId = editor?.document.languageId || "";
       insertCitation(formatCitation(selection.result.citekey, langId));
     }
     picker.hide();
@@ -423,16 +469,18 @@ async function showVSCodePicker(): Promise<void> {
 
 // Use Zotero's built-in CAYW picker
 async function showZoteroPicker(): Promise<void> {
-  const config: ZoteroConfig = vscode.workspace.getConfiguration('zotero-citation-picker') as any;
+  const config: ZoteroConfig = vscode.workspace.getConfiguration(
+    "zotero-citation-picker",
+  ) as any;
 
   try {
     const editor = vscode.window.activeTextEditor;
-    const langId = editor?.document.languageId || '';
+    const langId = editor?.document.languageId || "";
 
     // Use latex format for CAYW when editing LaTeX files
     let url = String(config.port);
-    if (langId === 'latex') {
-      url = url.replace(/format=\w+/, 'format=latex');
+    if (langId === "latex") {
+      url = url.replace(/format=\w+/, "format=latex");
     }
 
     const response = await fetch(url);
@@ -441,8 +489,10 @@ async function showZoteroPicker(): Promise<void> {
       await insertCitation(result);
     }
   } catch (err: any) {
-    console.log('Failed to fetch citation: %j', err.message);
-    vscode.window.showErrorMessage('Zotero Citations: could not connect to Zotero. Are you sure it is running?');
+    console.log("Failed to fetch citation: %j", err.message);
+    vscode.window.showErrorMessage(
+      "Zotero Citations: could not connect to Zotero. Are you sure it is running?",
+    );
   }
 }
 
@@ -450,13 +500,13 @@ async function showZoteroPicker(): Promise<void> {
 async function insertCitation(citation: string): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    vscode.window.showWarningMessage('No active text editor found');
+    vscode.window.showWarningMessage("No active text editor found");
     return;
   }
 
   // Insert citation into document
-  await editor.edit(editBuilder => {
-    editor.selections.forEach(selection => {
+  await editor.edit((editBuilder) => {
+    editor.selections.forEach((selection) => {
       editBuilder.delete(selection);
       editBuilder.insert(selection.start, citation);
     });
@@ -473,11 +523,11 @@ async function insertCitation(citation: string): Promise<void> {
       const fileExtension = path.extname(bibInfo.bibFile).toLowerCase();
 
       const translator =
-        fileExtension === '.yml' || fileExtension === '.yaml'
-          ? 'Better CSL YAML'
-          : fileExtension === '.json'
-          ? 'Better CSL JSON'
-          : 'Better BibTeX';
+        fileExtension === ".yml" || fileExtension === ".yaml"
+          ? "Better CSL YAML"
+          : fileExtension === ".json"
+            ? "Better CSL JSON"
+            : "Better BibTeX";
 
       const bibEntry = await getBibEntry(citeKey, translator);
 
@@ -487,11 +537,15 @@ async function insertCitation(citation: string): Promise<void> {
 
         if (bibInfo.isFromQuartoYaml) {
           // Bibliography from _quarto.yaml, use workspace root
-          const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-          baseUri = workspaceFolder ? workspaceFolder.uri : vscode.Uri.joinPath(editor.document.uri, '..');
+          const workspaceFolder = vscode.workspace.getWorkspaceFolder(
+            editor.document.uri,
+          );
+          baseUri = workspaceFolder
+            ? workspaceFolder.uri
+            : vscode.Uri.joinPath(editor.document.uri, "..");
         } else {
           // Bibliography from document's YAML front matter, use document's directory
-          baseUri = vscode.Uri.joinPath(editor.document.uri, '..');
+          baseUri = vscode.Uri.joinPath(editor.document.uri, "..");
         }
 
         const bibFileUri = vscode.Uri.joinPath(baseUri, bibInfo.bibFile);
@@ -504,10 +558,12 @@ async function insertCitation(citation: string): Promise<void> {
 
 // Main citation picker function that chooses between methods
 async function showCitationPicker(): Promise<void> {
-  const config: ZoteroConfig = vscode.workspace.getConfiguration('zotero-citation-picker') as any;
-  const citeMethod = config.citeMethod || 'zotero';
+  const config: ZoteroConfig = vscode.workspace.getConfiguration(
+    "zotero-citation-picker",
+  ) as any;
+  const citeMethod = config.citeMethod || "zotero";
 
-  if (citeMethod === 'vscode') {
+  if (citeMethod === "vscode") {
     await showVSCodePicker();
   } else {
     await showZoteroPicker();
@@ -515,11 +571,16 @@ async function showCitationPicker(): Promise<void> {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  console.log('Congratulations, your extension "zotero citation picker" is now active!');
+  console.log(
+    'Congratulations, your extension "zotero citation picker" is now active!',
+  );
 
-  let disposable = vscode.commands.registerCommand('extension.zoteroCitationPicker', () => {
-    showCitationPicker();
-  });
+  let disposable = vscode.commands.registerCommand(
+    "extension.zoteroCitationPicker",
+    () => {
+      showCitationPicker();
+    },
+  );
 
   context.subscriptions.push(disposable);
 }
