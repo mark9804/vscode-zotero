@@ -2,7 +2,7 @@
     "name": "zotero-latex-cite",
     "displayName": "Zotero LaTeX Citation Picker",
     "description": "Zotero Better Bibtex citation picker for VS Code with LaTeX support",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "publisher": "mark9804",
     "author": {
         "name": "mark9804",
@@ -26,7 +26,7 @@
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
         "lint": "eslint src --ext ts",
-        "package": "npx -y @vscode/vsce package"
+        "package": "npx @vscode/vsce package"
     },
     "homepage": "https://github.com/mvuorre/vscode-zotero",
     "bugs": {
@@ -37,6 +37,7 @@
         "url": "https://github.com/mvuorre/vscode-zotero.git"
     },
     "icon": "images/icon.png",
+    "extensionKind": ["ui"],
     "engines": {
         "vscode": "^1.84.0"
     },
@@ -97,8 +98,5 @@
         "mocha": "^10.2.0",
         "typescript": "^5.2.2"
     },
-    "dependencies": {
-        "request": "^2.88.0",
-        "request-promise": "^4.2.5"
-    }
+    "dependencies": {}
 }

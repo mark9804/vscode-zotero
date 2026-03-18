@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import requestPromise from 'request-promise';
-import * as fs from 'fs';
 import * as path from 'path';
 
 interface ZoteroConfig {
@@ -56,6 +54,50 @@ class ErrorItem implements vscode.QuickPickItem {
   }
 }
 
+const textDecoder = new TextDecoder('utf-8');
+const textEncoder = new TextEncoder();
+
+// Read a file via vscode.workspace.fs (works across remote boundaries)
+async function readWorkspaceFile(uri: vscode.Uri): Promise<string> {
+  const data = await vscode.workspace.fs.readFile(uri);
+  return textDecoder.decode(data);
+}
+
+// Write a file via vscode.workspace.fs (works across remote boundaries)
+async function writeWorkspaceFile(uri: vscode.Uri, content: string): Promise<void> {
+  await vscode.workspace.fs.writeFile(uri, textEncoder.encode(content));
+}
+
+// Check if a file exists via vscode.workspace.fs
+async function fileExists(uri: vscode.Uri): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.stat(uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Make a JSON-RPC request to Zotero Better BibTeX
+async function zoteroJsonRpc(method: string, params: any[]): Promise<any> {
+  const response = await fetch('http://127.0.0.1:23119/better-bibtex/json-rpc', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', method, params }),
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Zotero HTTP error: ${response.status}`);
+  }
+
+  const data = await response.json() as any;
+  return data.result;
+}
+
 // Extract bibliography file path from LaTeX commands, YAML front matter, or _quarto.yaml
 async function extractBibliographyFile(
   document: vscode.TextDocument
@@ -102,10 +144,10 @@ async function extractBibliographyFile(
   }
 
   for (const quartoFile of ['_quarto.yml', '_quarto.yaml']) {
-    const quartoPath = path.join(workspaceFolder.uri.fsPath, quartoFile);
+    const quartoUri = vscode.Uri.joinPath(workspaceFolder.uri, quartoFile);
 
-    if (fs.existsSync(quartoPath)) {
-      const quartoContent = fs.readFileSync(quartoPath, 'utf8');
+    if (await fileExists(quartoUri)) {
+      const quartoContent = await readWorkspaceFile(quartoUri);
       const bibliographyMatch = quartoContent.match(/bibliography:\s*([^\s\n]+)/);
 
       if (bibliographyMatch) {
@@ -149,25 +191,8 @@ function formatCitation(citekey: string, languageId: string): string {
 
 // Get Bib entry from Zotero for a given citation key
 async function getBibEntry(citeKey: string, translator: string = 'Better BibTeX'): Promise<string | null> {
-  const options = {
-    method: 'POST',
-    uri: 'http://localhost:23119/better-bibtex/json-rpc',
-    body: {
-      'jsonrpc': '2.0',
-      'method': 'item.export',
-      'params': [[citeKey], translator]
-    },
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'User-Agent': 'Request-Promise'
-    },
-    json: true
-  };
-
   try {
-    const response: any = await requestPromise(options);
-    let result = response.result || null;
+    let result: string | null = await zoteroJsonRpc('item.export', [[citeKey], translator]);
 
     // Strip YAML front matter wrapper for Better CSL YAML exports
     if (result && translator === 'Better CSL YAML') {
@@ -246,42 +271,24 @@ function parseSearchQuery(query: string): string | Array<Array<string>> {
 async function searchZotero(query: string): Promise<SearchResult[]> {
   const searchTerms = parseSearchQuery(query);
 
-  const options = {
-    method: 'POST',
-    uri: 'http://localhost:23119/better-bibtex/json-rpc',
-    body: {
-      'jsonrpc': '2.0',
-      'method': 'item.search',
-      'params': [searchTerms]
-    },
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'User-Agent': 'Request-Promise'
-    },
-    json: true,
-    timeout: 5000
-  };
-
   try {
-    const response: any = await requestPromise(options);
-    const results = response.result || [];
-    return results;
+    const results = await zoteroJsonRpc('item.search', [searchTerms]);
+    return results || [];
   } catch (err) {
     console.log('Failed to search Zotero:', err);
     throw new Error('Could not connect to Zotero. Is Zotero running with Better BibTeX?');
   }
 }
 
-// Update .bib file with new entry
-async function updateBibFile(bibFilePath: string, bibEntry: string, citeKey: string): Promise<void> {
+// Update .bib file with new entry (uses vscode.workspace.fs for remote support)
+async function updateBibFile(bibFileUri: vscode.Uri, bibEntry: string, citeKey: string): Promise<void> {
   try {
     let bibContent = '';
-    const fileExtension = path.extname(bibFilePath).toLowerCase();
+    const fileExtension = path.extname(bibFileUri.fsPath).toLowerCase();
 
     // Read existing bibliography file if it exists
-    if (fs.existsSync(bibFilePath)) {
-      bibContent = fs.readFileSync(bibFilePath, 'utf8');
+    if (await fileExists(bibFileUri)) {
+      bibContent = await readWorkspaceFile(bibFileUri);
 
       // Check if the citation key already exists (format depends on file type)
       let keyExists = false;
@@ -324,9 +331,9 @@ async function updateBibFile(bibFilePath: string, bibEntry: string, citeKey: str
       newContent = bibContent + (bibContent && !bibContent.endsWith('\n') ? '\n' : '') + bibEntry + '\n';
     }
 
-    fs.writeFileSync(bibFilePath, newContent, 'utf8');
+    await writeWorkspaceFile(bibFileUri, newContent);
 
-    console.log(`Added citation ${citeKey} to ${bibFilePath}`);
+    console.log(`Added citation ${citeKey} to ${bibFileUri.fsPath}`);
   } catch (err) {
     console.log('Failed to update bibliography file:', err);
     vscode.window.showWarningMessage(`Failed to update bibliography file: ${err}`);
@@ -428,7 +435,8 @@ async function showZoteroPicker(): Promise<void> {
       url = url.replace(/format=\w+/, 'format=latex');
     }
 
-    const result: string = await requestPromise(url);
+    const response = await fetch(url);
+    const result = await response.text();
     if (result) {
       await insertCitation(result);
     }
@@ -474,21 +482,21 @@ async function insertCitation(citation: string): Promise<void> {
       const bibEntry = await getBibEntry(citeKey, translator);
 
       if (bibEntry) {
-        // Determine base path based on where bibliography is defined
-        let basePath: string;
+        // Determine base URI based on where bibliography is defined
+        let baseUri: vscode.Uri;
 
         if (bibInfo.isFromQuartoYaml) {
           // Bibliography from _quarto.yaml, use workspace root
           const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-          basePath = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(editor.document.uri.fsPath);
+          baseUri = workspaceFolder ? workspaceFolder.uri : vscode.Uri.joinPath(editor.document.uri, '..');
         } else {
           // Bibliography from document's YAML front matter, use document's directory
-          basePath = path.dirname(editor.document.uri.fsPath);
+          baseUri = vscode.Uri.joinPath(editor.document.uri, '..');
         }
 
-        const bibFilePath = path.resolve(basePath, bibInfo.bibFile);
+        const bibFileUri = vscode.Uri.joinPath(baseUri, bibInfo.bibFile);
 
-        await updateBibFile(bibFilePath, bibEntry, citeKey);
+        await updateBibFile(bibFileUri, bibEntry, citeKey);
       }
     }
   }
