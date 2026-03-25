@@ -1,6 +1,5 @@
 ---
 title: "Test Document"
-bibliography: references.bib
 ---
 
 # Test Document

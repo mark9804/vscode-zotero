@@ -2,7 +2,7 @@
     "name": "zotero-latex-cite",
     "displayName": "Zotero LaTeX Citation Picker",
     "description": "Zotero Better Bibtex citation picker for VS Code with LaTeX support",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "publisher": "mark9804",
     "author": {
         "name": "mark9804",

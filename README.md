@@ -1,5 +1,11 @@
 # Zotero Citation Picker
 
+> [!WARNING]
+> 
+> Breaking changes introduced since 0.3.0:
+>
+> - Markdown documents will no longer support frontmatter .bib file. Instead, formatted reference items will be attached to the end of the document.
+
 [Positron](https://positron.posit.co/) (and other VS Code IDE) extension to insert citations from [Zotero](https://www.zotero.org/) to your document and its associated `.bib` file. Requires the [Better BibTeX](https://retorque.re/zotero-better-bibtex/) Zotero plugin.
 
 Fork of <https://github.com/mblode/vscode-zotero>, which appears no longer maintained.

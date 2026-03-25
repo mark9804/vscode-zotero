@@ -173,10 +173,16 @@ async function extractBibliographyFile(
   return null;
 }
 
-// Extract citation key from citation text (e.g., @key, [@key], or \cite{key} -> key)
+// Extract citation key from citation text (e.g., @key, [@key], \cite{key}, or [^key] -> key)
 function extractCitationKey(citationText: string): string | null {
   // Try \cite{key} format (LaTeX)
   let match = citationText.match(/\\cite\{([^}]+)\}/);
+  if (match) {
+    return match[1];
+  }
+
+  // Try [^key] format (Markdown footnote)
+  match = citationText.match(/\[\^([^\]]+)\]/);
   if (match) {
     return match[1];
   }
@@ -192,12 +198,71 @@ function extractCitationKey(citationText: string): string | null {
   return match ? match[1] : null;
 }
 
-// Format citation based on document language
+// Format inline citation reference based on document language
 function formatCitation(citekey: string, languageId: string): string {
   if (languageId === "latex") {
     return `\\cite{${citekey}}`;
   }
+  if (languageId === "markdown") {
+    return `[^${citekey}]`;
+  }
   return `@${citekey}`;
+}
+
+// Build a human-readable citation string from CSL-JSON search result
+function formatCitationText(result: SearchResult): string {
+  const parts: string[] = [];
+
+  // Authors: "Family, G., Family, G., & Family, G."
+  if (result.author && result.author.length > 0) {
+    const names = result.author.map((a) => {
+      const family = a.family || "";
+      const given = a.given
+        ? a.given
+            .split(/\s+/)
+            .map((n) => n[0] + ".")
+            .join(" ")
+        : "";
+      return given ? `${family}, ${given}` : family;
+    });
+    if (names.length <= 2) {
+      parts.push(names.join(" & "));
+    } else {
+      parts.push(names.slice(0, -1).join(", ") + ", & " + names[names.length - 1]);
+    }
+  }
+
+  // Year
+  const issued = (result as any).issued;
+  if (issued?.["date-parts"]?.[0]?.[0]) {
+    parts.push(`(${issued["date-parts"][0][0]})`);
+  }
+
+  // Title
+  if (result.title) {
+    parts.push(result.title);
+  }
+
+  // Container (journal/conference)
+  const container = (result as any)["container-title"];
+  if (container) {
+    let containerStr = container;
+    const vol = (result as any).volume;
+    const issue = (result as any).issue;
+    const page = (result as any).page;
+    if (vol) {
+      containerStr += `, ${vol}`;
+      if (issue) {
+        containerStr += `(${issue})`;
+      }
+    }
+    if (page) {
+      containerStr += `, ${page}`;
+    }
+    parts.push(containerStr);
+  }
+
+  return parts.join(". ") + ".";
 }
 
 // Get Bib entry from Zotero for a given citation key
@@ -449,7 +514,10 @@ async function showVSCodePicker(): Promise<void> {
     if (selection && selection instanceof EntryItem) {
       const editor = vscode.window.activeTextEditor;
       const langId = editor?.document.languageId || "";
-      insertCitation(formatCitation(selection.result.citekey, langId));
+      insertCitation(
+        formatCitation(selection.result.citekey, langId),
+        selection.result,
+      );
     }
     picker.hide();
   });
@@ -496,8 +564,11 @@ async function showZoteroPicker(): Promise<void> {
   }
 }
 
-// Insert citation and update bibliography file
-async function insertCitation(citation: string): Promise<void> {
+// Insert citation and update bibliography / footnote
+async function insertCitation(
+  citation: string,
+  searchResult?: SearchResult,
+): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     vscode.window.showWarningMessage("No active text editor found");
@@ -512,7 +583,30 @@ async function insertCitation(citation: string): Promise<void> {
     });
   });
 
-  // Update .bib file
+  // For markdown: append footnote definition to document
+  if (editor.document.languageId === "markdown" && searchResult) {
+    const citeKey = searchResult.citekey;
+    const docText = editor.document.getText();
+    const footnoteTag = `[^${citeKey}]:`;
+
+    // Skip if footnote definition already exists
+    if (docText.includes(footnoteTag)) {
+      return;
+    }
+
+    const footnoteLine = `[^${citeKey}]: ${formatCitationText(searchResult)}`;
+    const lastLine = editor.document.lineAt(editor.document.lineCount - 1);
+    const endPos = lastLine.range.end;
+
+    await editor.edit((editBuilder) => {
+      // Ensure there's a trailing newline before appending
+      const prefix = lastLine.text === "" ? "" : "\n";
+      editBuilder.insert(endPos, `${prefix}${footnoteLine}\n`);
+    });
+    return;
+  }
+
+  // For LaTeX / Quarto: update .bib file
   const bibInfo = await extractBibliographyFile(editor.document);
 
   if (bibInfo) {
