@@ -11,7 +11,7 @@ interface SearchResult {
   type: string;
   citekey: string;
   title: string;
-  author?: [{ family: string; given: string }];
+  author?: { family: string; given: string }[];
   [field: string]: any;
 }
 
@@ -209,60 +209,77 @@ function formatCitation(citekey: string, languageId: string): string {
   return `@${citekey}`;
 }
 
-// Build a human-readable citation string from CSL-JSON search result
-function formatCitationText(result: SearchResult): string {
-  const parts: string[] = [];
-
-  // Authors: "Family, G., Family, G., & Family, G."
-  if (result.author && result.author.length > 0) {
-    const names = result.author.map((a) => {
-      const family = a.family || "";
-      const given = a.given
-        ? a.given
-            .split(/\s+/)
-            .map((n) => n[0] + ".")
-            .join(" ")
-        : "";
-      return given ? `${family}, ${given}` : family;
-    });
-    if (names.length <= 2) {
-      parts.push(names.join(" & "));
-    } else {
-      parts.push(names.slice(0, -1).join(", ") + ", & " + names[names.length - 1]);
-    }
+// Format author list from CSL-JSON: "Family, G., Family, G., & Family, G."
+function formatAuthors(result: SearchResult): string {
+  if (!result.author || result.author.length === 0) {
+    return "";
   }
-
-  // Year
-  const issued = (result as any).issued;
-  if (issued?.["date-parts"]?.[0]?.[0]) {
-    parts.push(`(${issued["date-parts"][0][0]})`);
+  const names = result.author.map((a) => {
+    const family = a.family || "";
+    const given = a.given
+      ? a.given
+          .split(/\s+/)
+          .map((n) => n[0] + ".")
+          .join(" ")
+      : "";
+    return given ? `${family}, ${given}` : family;
+  });
+  if (names.length <= 2) {
+    return names.join(" & ");
   }
+  return names.slice(0, -1).join(", ") + ", & " + names[names.length - 1];
+}
 
-  // Title
-  if (result.title) {
-    parts.push(result.title);
-  }
-
-  // Container (journal/conference)
+// Format container (journal/conference) with volume, issue, and page
+function formatContainer(result: SearchResult): string {
   const container = (result as any)["container-title"];
-  if (container) {
-    let containerStr = container;
-    const vol = (result as any).volume;
-    const issue = (result as any).issue;
-    const page = (result as any).page;
-    if (vol) {
-      containerStr += `, ${vol}`;
-      if (issue) {
-        containerStr += `(${issue})`;
-      }
-    }
-    if (page) {
-      containerStr += `, ${page}`;
-    }
-    parts.push(containerStr);
+  if (!container) {
+    return "";
   }
+  let str = container;
+  const vol = (result as any).volume;
+  const issue = (result as any).issue;
+  const page = (result as any).page;
+  if (vol) {
+    str += `, ${vol}`;
+    if (issue) {
+      str += `(${issue})`;
+    }
+  }
+  if (page) {
+    str += `, ${page}`;
+  }
+  return str;
+}
 
-  return parts.join(". ") + ".";
+// Build a human-readable citation string from CSL-JSON search result using a configurable template
+function formatCitationText(result: SearchResult): string {
+  const template = vscode.workspace
+    .getConfiguration("zotero-citation-picker")
+    .get<string>(
+      "markdownCitationTemplate",
+      "{{authors}}. ({{year}}). {{title}}. {{container}}.",
+    );
+
+  const authors = formatAuthors(result);
+  const issued = (result as any).issued;
+  const year = issued?.["date-parts"]?.[0]?.[0]?.toString() || "";
+  const title = result.title || "";
+  const container = formatContainer(result);
+
+  let text = template
+    .replace(/\{\{authors\}\}/g, authors)
+    .replace(/\{\{year\}\}/g, year)
+    .replace(/\{\{title\}\}/g, title)
+    .replace(/\{\{container\}\}/g, container);
+
+  // Cleanup artifacts from empty fields
+  text = text.replace(/\(\)/g, ""); // remove empty parens
+  text = text.replace(/\.(\s*\.)+/g, "."); // collapse consecutive dots
+  text = text.replace(/\s{2,}/g, " "); // collapse whitespace
+  text = text.trim();
+
+  return text;
 }
 
 // Get Bib entry from Zotero for a given citation key

@@ -81,6 +81,11 @@
                     "enumDescriptions": ["Use the Zotero Cite as you Write popup", "Use a picker within VS Code"],
                     "default": "vscode",
                     "markdownDescription": "Controls how Zotero citations are chosen"
+                },
+                "zotero-citation-picker.markdownCitationTemplate": {
+                    "type": "string",
+                    "default": "{{authors}}. ({{year}}). {{title}}. {{container}}.",
+                    "markdownDescription": "Template for Markdown footnote citation text. Available variables: `{{authors}}`, `{{year}}`, `{{title}}`, `{{container}}`."
                 }
             }
         }
