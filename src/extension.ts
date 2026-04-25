@@ -107,6 +107,30 @@ async function zoteroJsonRpc(method: string, params: any[]): Promise<any> {
   return data.result;
 }
 
+function parseTypstBibliography(source: string): string | null {
+  // Find the bibliography call, allowing whitespace/newlines after the parentheses
+  const callMatch = source.match(/#bibliography\s*\(([\s\S]*?)\)/);
+  if (!callMatch) {
+    return null;
+  }
+
+  const args = callMatch[1];
+
+  // Case 1: array form — #bibliography(("a.bib", "b.yml"), ...)
+  // Take the first string inside the inner parentheses
+  const arrayMatch = args.match(/^\s*\(\s*"([^"]+)"/);
+  if (arrayMatch) {
+    return arrayMatch[1];
+  }
+  // Case 2: single string form — #bibliography("refs.bib", style: "ieee")
+  const stringMatch = args.match(/^\s*"([^"]+)"/);
+  if (stringMatch) {
+    return stringMatch[1];
+  }
+
+  return null;
+}
+
 // Extract bibliography file path from LaTeX commands, YAML front matter, or _quarto.yaml
 async function extractBibliographyFile(
   document: vscode.TextDocument,
@@ -128,6 +152,13 @@ async function extractBibliographyFile(
         bibFile += ".bib";
       }
       return { bibFile, isFromQuartoYaml: false };
+    }
+  }
+  if (document.languageId === "typst") {
+    const bibFile = parseTypstBibliography(documentText);
+    if (bibFile) {
+      return {
+        bibFile, isFromQuartoYaml: false };
     }
   }
 
@@ -200,13 +231,15 @@ function extractCitationKey(citationText: string): string | null {
 
 // Format inline citation reference based on document language
 function formatCitation(citekey: string, languageId: string): string {
-  if (languageId === "latex") {
-    return `\\cite{${citekey}}`;
+  switch (languageId) {
+    case "latex":
+      return `\\cite{${citekey}}`;
+    case "markdown":
+      return `[^${citekey}]`;
+    case "typst":
+    default:
+      return `@${citekey}`;
   }
-  if (languageId === "markdown") {
-    return `[^${citekey}]`;
-  }
-  return `@${citekey}`;
 }
 
 // Format author list from CSL-JSON: "Family, G., Family, G., & Family, G."
@@ -218,9 +251,9 @@ function formatAuthors(result: SearchResult): string {
     const family = a.family || "";
     const given = a.given
       ? a.given
-          .split(/\s+/)
-          .map((n) => n[0] + ".")
-          .join(" ")
+        .split(/\s+/)
+        .map((n) => n[0] + ".")
+        .join(" ")
       : "";
     return given ? `${family}, ${given}` : family;
   });
