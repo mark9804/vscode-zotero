@@ -11,6 +11,7 @@ VS Code-like editor extension to insert citations from [Zotero](https://www.zote
 
 - (Quarto) markdown document(s);
 - $\LaTeX$ document and its associated `.bib` file.
+- Typst document (Thanks [@lfsorf](https://github.com/lfsorf) )
 
 Requires the [Better BibTeX](https://retorque.re/zotero-better-bibtex/) Zotero plugin.
 
@@ -56,3 +57,11 @@ Feel free to fire off an issue or PR at <https://github.com/mark9804/vscode-zote
 ## Development
 
 Test files are in `playground/` (test.md, test.qmd, main.tex). Press F5 to launch extension in debug mode with test.md open. Default files to open can be changed in `.vscode/launch.json`.
+
+## Contributors 
+
+<a href="https://github.com/mark9804/vscode-zotero/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=mark9804/vscode-zotero" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
