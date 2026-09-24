@@ -2,7 +2,7 @@
     "name": "zotero-latex-cite",
     "displayName": "Zotero LaTeX Citation Picker",
     "description": "Zotero Better Bibtex citation picker for VS Code with LaTeX support",
-    "version": "0.5.1",
+    "version": "0.5.2",
     "publisher": "mark9804",
     "author": {
         "name": "mark9804",
@@ -25,6 +25,7 @@
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
+        "test": "npm run compile && node test/run.cjs",
         "lint": "eslint src --ext ts",
         "package": "npx @vscode/vsce package"
     },

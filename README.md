@@ -40,6 +40,7 @@ You can activate the citation picker either by:
 
 ## Native VS Code Citation Picker Behavior
 
+- Check multiple results, keep searching for more papers, and press Enter to insert the selection. Checked papers stay at the top of the list when the search changes; uncheck a paper to remove it. Pressing Enter without checking anything inserts the highlighted result.
 - Simple search: Type any text to search across titles, authors, and other fields
 - Advanced search: Use field-specific searches like:
   - `author:vuorre` - Search by author name
@@ -50,6 +51,22 @@ You can activate the citation picker either by:
   - `doi:10.1000` - Search by DOI
   - Multiple fields: `author:smith title:climate` - Search multiple fields simultaneously
 
+## LaTeX projects
+
+Multiple papers are inserted as one citation, such as `\cite{key1,key2}`. When the cursor is inside the key argument of an existing citation, the picker adds missing keys to that citation and preserves its command and optional arguments, including `\citep[see][p. 3]{key1}`.
+
+In section files, point to the main document with a root comment:
+
+```latex
+% !TeX root = ../main.tex
+```
+
+The extension reads `\bibliography{main}` or `\addbibresource{main.bib}` from the main document and resolves the bibliography path relative to that document. The citation goes into the section file. Root comments can point to another root comment; missing or circular roots report an error. If the root declares several bibliography files, the picker asks which file to update. Duplicate detection applies to the chosen file.
+
+The extension exports missing entries in one request before changing the document. Existing `.tex` and bibliography documents are updated together. Unsaved edits in the main file and bibliography are respected; previously clean bibliographies are saved automatically, while a bibliography with pending edits is left for you to save. If the active document changes while the picker is open, rerun the picker at the desired position.
+
+The Zotero CAYW picker also supports multiple citations. Its citation commands and page notes are preserved. A CAYW citation containing page notes or a different command must be inserted outside an existing citation so those details are retained.
+
 ## Contributing
 
 Feel free to fire off an issue or PR at <https://github.com/mark9804/vscode-zotero/issues>. Please note that the code has been heavily modified compared to the original repository, so an issue mistakenly created in the original repository may introduce confusion.
@@ -57,6 +74,8 @@ Feel free to fire off an issue or PR at <https://github.com/mark9804/vscode-zote
 ## Development
 
 Test files are in `playground/` (test.md, test.qmd, main.tex). Press F5 to launch extension in debug mode with test.md open. Default files to open can be changed in `.vscode/launch.json`.
+
+Run `npm test` for regression checks in a real VS Code extension host with an isolated temporary workspace and profile. Zotero responses are stubbed; no live library or paper files are changed. The runner uses the installed macOS VS Code when available, or downloads a test copy through `@vscode/test-electron`. Set `VSCODE_EXECUTABLE` to use a particular executable. Run `npm run lint` for source linting.
 
 ## Contributors 
 

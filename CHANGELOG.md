@@ -1,5 +1,12 @@
 # Change Log
 
+## 0.5.2
+
+- Select multiple citations across searches and insert them together; merge keys into existing LaTeX citations.
+- Follow `% !TeX root` comments and resolve bibliography paths relative to the main document.
+- Batch-export missing bibliography entries, preserve unsaved changes, and stop insertion when export fails.
+- Preserve multi-citation CAYW output and add isolated VS Code extension-host regression checks.
+
 ## 0.3.0
 
 - Remove unused functions "openInZotero" and "openPDFZotero"
