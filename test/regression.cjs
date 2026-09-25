@@ -36,6 +36,11 @@ async function waitFor(predicate) {
 exports.run = async function () {
   let passed = 0;
   const originalFetch = global.fetch;
+  const originalQuickPick = vscode.window.showQuickPick;
+  const originalOpenDialog = vscode.window.showOpenDialog;
+  const unexpectedDialog = async () => assert.fail('Unexpected root selection dialog');
+  vscode.window.showQuickPick = unexpectedDialog;
+  vscode.window.showOpenDialog = unexpectedDialog;
   const check = async (name, run) => {
     await run();
     console.log(`PASS: ${name}`);
@@ -132,8 +137,70 @@ exports.run = async function () {
       assert.equal(bad.getText(), before);
       const circular = await file('invalid/self.tex', '% !TeX root = self.tex');
       await assert.rejects(bibliography.resolveBibliographyUri(circular), /Circular/);
-      const plain = await file('invalid/plain.tex', '\\section{Introduction}');
+      const plain = await file('invalid/plain.tex', '\\documentclass{article}\n\\section{Introduction}');
       await assert.rejects(bibliography.resolveBibliographyUri(plain), /No bibliography declaration/);
+    });
+
+    await check('Discover a unique root through nested includes and unsaved main-file changes', async () => {
+      const main = await file('automatic/paper.tex', '\\documentclass{article}\n\\bibliography{refs}\n');
+      await file('automatic/sec/outline.tex', '\\include{sec/intro}\n');
+      await append(main, '\\input{sec/outline}\n');
+      await file('automatic/other.tex', '\\documentclass{article}\n% \\input{sec/intro}\n\\input{not-created-yet}\n\\bibliography{other}\n');
+      const section = await file('automatic/sec/intro.tex', '\\section{Introduction}\nText ');
+      const bib = await file('automatic/refs.bib', '');
+      assert.equal((await bibliography.resolveBibliographyUri(section)).toString(), bib.uri.toString());
+      global.fetch = async (_url, request) => {
+        assert.deepEqual(JSON.parse(request.body).params, [['Auto'], 'Better BibTeX']);
+        return ok(bibEntry('Auto'));
+      };
+      await insertCitations(section, cursor(section), section.version, { citekeys: ['Auto'] });
+      assert.ok(section.getText().endsWith('\\cite{Auto}'));
+      assert.equal(await fs.readFile(bib.uri.fsPath, 'utf8'), bibEntry('Auto'));
+      await assert.rejects(fs.stat(path.join(root, 'automatic/sec/refs.bib')), { code: 'ENOENT' });
+    });
+
+    await check('Choose between containing roots, cancel safely, and prefer explicit root comments', async () => {
+      const main = await file('shared/main.tex', '\\documentclass{article}\n\\input{sec/shared}\n\\bibliography{main}\n');
+      const supplement = await file('shared/supplement.tex', '\\documentclass{article}\n\\input sec/shared.tex\n\\bibliography{supplement}\n');
+      const shared = await file('shared/sec/shared.tex', 'Shared text ');
+      let prompts = 0;
+      try {
+        vscode.window.showQuickPick = async (items) => {
+          prompts++;
+          assert.deepEqual(items.map((item) => item.document.uri.toString()).sort(), [main.uri.toString(), supplement.uri.toString()].sort());
+          return items.find((item) => item.document === supplement);
+        };
+        assert.equal((await bibliography.resolveBibliographyUri(shared)).fsPath, path.join(root, 'shared/supplement.bib'));
+        assert.equal(prompts, 1);
+        vscode.window.showQuickPick = async () => undefined;
+        global.fetch = async () => assert.fail('Cancelled root selection must not export citations');
+        const before = shared.getText();
+        await insertCitations(shared, cursor(shared), shared.version, { citekeys: ['A'] });
+        assert.equal(shared.getText(), before);
+        await append(shared, '\n% !TeX root = ../main.tex\n');
+        vscode.window.showQuickPick = unexpectedDialog;
+        assert.equal((await bibliography.resolveBibliographyUri(shared)).fsPath, path.join(root, 'shared/main.bib'));
+      } finally {
+        vscode.window.showQuickPick = unexpectedDialog;
+      }
+    });
+
+    await check('Choose a main file manually when inclusion cannot be inferred', async () => {
+      const manualRoot = await file('manual/main.tex', '\\documentclass{article}\n\\input{\\chapterPath}\n\\bibliography{refs}\n');
+      const orphan = await file('manual/sec/orphan.tex', 'Text ');
+      try {
+        vscode.window.showOpenDialog = async (options) => {
+          assert.deepEqual(options.filters, { LaTeX: ['tex'] });
+          return [manualRoot.uri];
+        };
+        assert.equal((await bibliography.resolveBibliographyUri(orphan)).fsPath, path.join(root, 'manual/refs.bib'));
+        vscode.window.showOpenDialog = async () => undefined;
+        const before = orphan.getText();
+        await insertCitations(orphan, cursor(orphan), orphan.version, { citekeys: ['A'] });
+        assert.equal(orphan.getText(), before);
+      } finally {
+        vscode.window.showOpenDialog = unexpectedDialog;
+      }
     });
 
     await check('Markdown multi-footnotes at end of document and Quarto CSL JSON', async () => {
@@ -210,5 +277,7 @@ exports.run = async function () {
     console.log(`${passed} regression checks passed in VS Code ${vscode.version}`);
   } finally {
     global.fetch = originalFetch;
+    vscode.window.showQuickPick = originalQuickPick;
+    vscode.window.showOpenDialog = originalOpenDialog;
   }
 };

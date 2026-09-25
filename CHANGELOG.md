@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.5.3
+
+- Discover the main LaTeX document through recursive `\input` and `\include` relationships when a section has no root comment.
+- Ask which main document to use when several include the section, and allow manual selection when none can be inferred.
+
 ## 0.5.2
 
 - Select multiple citations across searches and insert them together; merge keys into existing LaTeX citations.

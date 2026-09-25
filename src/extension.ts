@@ -21,7 +21,7 @@ export async function insertCitations(
   const footnotes = languageId === "markdown" && selection.results;
   const uri = footnotes ? undefined : await resolveBibliographyUri(document);
   if (languageId === "latex" && !uri) {
-    return; // The user cancelled bibliography selection.
+    return; // The user cancelled root or bibliography selection.
   }
   const bibliography = uri ? await prepareBibliographyUpdate(uri, selection.citekeys) : undefined;
 

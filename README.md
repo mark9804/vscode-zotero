@@ -55,11 +55,13 @@ You can activate the citation picker either by:
 
 Multiple papers are inserted as one citation, such as `\cite{key1,key2}`. When the cursor is inside the key argument of an existing citation, the picker adds missing keys to that citation and preserves its command and optional arguments, including `\citep[see][p. 3]{key1}`.
 
-In section files, point to the main document with a root comment:
+In section files, you can explicitly point to the main document with a root comment:
 
 ```latex
 % !TeX root = ../main.tex
 ```
+
+Without a root comment or a bibliography declaration in the active section, the extension searches `.tex` files in its workspace folder for main documents containing `\documentclass`. It follows literal `\input` and `\include` paths recursively, resolving them relative to each candidate main document. A unique match is used automatically; multiple matches open a main-document picker. If none match, a file dialog lets you specify the main document. Cancelling either dialog leaves the citation uninserted. Macro-generated include paths require an explicit root comment or manual selection.
 
 The extension reads `\bibliography{main}` or `\addbibresource{main.bib}` from the main document and resolves the bibliography path relative to that document. The citation goes into the section file. Root comments can point to another root comment; missing or circular roots report an error. If the root declares several bibliography files, the picker asks which file to update. Duplicate detection applies to the chosen file.
 

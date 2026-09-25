@@ -25,6 +25,88 @@ function yamlBibliography(text: string): string | undefined {
   return text.match(/^\s*bibliography:\s*["']?([^\r\n"']+?)["']?\s*$/m)?.[1].trim();
 }
 
+async function findLatexRoot(document: vscode.TextDocument): Promise<vscode.TextDocument | undefined> {
+  const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+  const documents = new Map<string, vscode.TextDocument>([[document.uri.toString(), document]]);
+  const candidates: vscode.TextDocument[] = [];
+  if (folder) {
+    const files = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(folder, "**/*.tex"), "**/{.git,node_modules}/**",
+    );
+    for (const uri of files) {
+      const file = await vscode.workspace.openTextDocument(uri);
+      documents.set(uri.toString(), file);
+      if (/\\documentclass\b/.test(withoutLatexComments(file.getText()))) {
+        candidates.push(file);
+      }
+    }
+  }
+
+  // ponytail: literal input/include paths only; macro-based paths need an explicit root.
+  const includesDocument = async (
+    file: vscode.TextDocument,
+    root: vscode.Uri,
+    visited: Set<string>,
+  ): Promise<boolean> => {
+    const id = file.uri.toString();
+    if (visited.has(id)) {
+      return false;
+    }
+    visited.add(id);
+    const source = withoutLatexComments(file.getText());
+    for (const match of source.matchAll(/\\(?:input|include)\b\s*(?:\{([^{}]+)\}|([^\s{}]+))/g)) {
+      const filename = (match[1] ?? match[2]).trim();
+      if (filename.includes("\\") || filename.includes("#")) {
+        continue;
+      }
+      const names = path.extname(filename) ? [filename] : [`${filename}.tex`, filename];
+      for (const name of names) {
+        // TeX resolves ordinary input/include paths from the compilation root.
+        const uri = relativeToDocument(root, name);
+        if (uri.toString() === document.uri.toString()) {
+          return true;
+        }
+        let child = documents.get(uri.toString());
+        if (!child && await fileExists(uri)) {
+          child = await vscode.workspace.openTextDocument(uri);
+          documents.set(uri.toString(), child);
+        }
+        if (child) {
+          if (await includesDocument(child, root, visited)) {
+            return true;
+          }
+          break;
+        }
+      }
+    }
+    return false;
+  };
+
+  const roots: vscode.TextDocument[] = [];
+  for (const candidate of candidates) {
+    if (await includesDocument(candidate, candidate.uri, new Set())) {
+      roots.push(candidate);
+    }
+  }
+  if (roots.length === 1) {
+    return roots[0];
+  }
+  if (roots.length > 1) {
+    const picked = await vscode.window.showQuickPick(roots.map((root) => ({
+      label: vscode.workspace.asRelativePath(root.uri), document: root,
+    })), { placeHolder: "Several main documents include this file. Choose the LaTeX root." });
+    return picked?.document;
+  }
+  const picked = await vscode.window.showOpenDialog({
+    title: "No LaTeX root found. Select the main document.",
+    openLabel: "Use main document",
+    canSelectMany: false,
+    filters: { LaTeX: ["tex"] },
+    defaultUri: folder?.uri ?? vscode.Uri.joinPath(document.uri, ".."),
+  });
+  return picked?.[0] ? vscode.workspace.openTextDocument(picked[0]) : undefined;
+}
+
 export async function resolveBibliographyUri(
   document: vscode.TextDocument,
 ): Promise<vscode.Uri | undefined> {
@@ -45,6 +127,14 @@ export async function resolveBibliographyUri(
       } catch {
         throw new Error(`Cannot open LaTeX root ${rootUri.fsPath}. Check the % !TeX root directive.`);
       }
+    }
+
+    if (visited.size === 1 && !/\\(?:documentclass|bibliography|addbibresource)\b/.test(withoutLatexComments(document.getText()))) {
+      const root = await findLatexRoot(document);
+      if (!root) {
+        return undefined;
+      }
+      document = root;
     }
 
     const source = withoutLatexComments(document.getText());
