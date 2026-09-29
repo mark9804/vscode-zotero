@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.5.4
+
+- Automatically check existing citations from the editor selection or enclosing LaTeX citation when they appear in search results; respect subsequent manual deselection.
+- Make Enter insert the first result when nothing is checked, while continuing to insert all checked citations for multi-selection.
+
 ## 0.5.3
 
 - Discover the main LaTeX document through recursive `\input` and `\include` relationships when a section has no root comment.

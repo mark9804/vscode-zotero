@@ -18,7 +18,7 @@ class EntryItem implements vscode.QuickPickItem {
   }
 }
 
-export function showVSCodePicker(): Promise<CitationSelection | undefined> {
+export function showVSCodePicker(existingKeys: readonly string[] = []): Promise<CitationSelection | undefined> {
   const picker = vscode.window.createQuickPick<vscode.QuickPickItem>();
   picker.placeholder = 'Search, check citations, then press Enter (try "author:lastname")';
   picker.canSelectMany = true;
@@ -27,6 +27,7 @@ export function showVSCodePicker(): Promise<CitationSelection | undefined> {
 
   return new Promise((resolve) => {
     const selected = new Map<string, EntryItem>();
+    const pendingPreselection = new Set(existingKeys);
     let searchTimeout: NodeJS.Timeout | undefined;
     let searchId = 0;
     let closed = false;
@@ -36,13 +37,19 @@ export function showVSCodePicker(): Promise<CitationSelection | undefined> {
       const items = new Map(selected);
       for (const result of results) {
         if (result.citekey && !items.has(result.citekey)) {
-          items.set(result.citekey, new EntryItem(result));
+          const item = new EntryItem(result);
+          items.set(result.citekey, item);
+          // Auto-check each existing key once, so later manual deselection is respected.
+          if (pendingPreselection.delete(result.citekey)) {
+            selected.set(result.citekey, item);
+          }
         }
       }
       updating = true;
       picker.busy = false;
       picker.items = [...items.values(), ...(error ? [{ label: error, alwaysShow: true }] : [])];
       picker.selectedItems = [...selected.values()];
+      picker.title = `Zotero — ${selected.size} selected`;
       updating = false;
     };
 
@@ -85,8 +92,11 @@ export function showVSCodePicker(): Promise<CitationSelection | undefined> {
     });
 
     picker.onDidAccept(() => {
+      if (!selected.size && picker.busy) {
+        return;
+      }
       const items = selected.size ? [...selected.values()]
-        : picker.activeItems.filter((item): item is EntryItem => item instanceof EntryItem);
+        : picker.items.filter((item): item is EntryItem => item instanceof EntryItem).slice(0, 1);
       if (!items.length) {
         return;
       }

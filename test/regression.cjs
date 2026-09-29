@@ -60,6 +60,17 @@ exports.run = async function () {
       assert.equal(citations.formatCitation(['A', 'B'], 'typst'), '@A @B');
     });
 
+    await check('Preselection uses citations in selected text or the enclosing key argument', async () => {
+      const source = 'Outside \\cite{C}. Selected \\citep*[see][p. 2]{A,B} and \\cite{D}.\n% \\cite{ignored}';
+      const start = source.indexOf('A,B');
+      assert.deepEqual(citations.citationKeysInRanges(source, [{ start, end: start }], 'latex'), ['A', 'B']);
+      assert.deepEqual(citations.citationKeysInRanges(source, [{ start: start - 1, end: start + 4 }], 'latex'), ['A', 'B']);
+      assert.deepEqual(citations.citationKeysInRanges(source, [{ start: source.indexOf('Selected'), end: source.length }], 'latex'), ['A', 'B', 'D']);
+      assert.deepEqual(citations.citationKeysInRanges(source, [{ start: 0, end: 0 }], 'latex'), []);
+      assert.deepEqual(citations.citationKeysInRanges(source, [{ start, end: start }, { start, end: start + 3 }], 'latex'), ['A', 'B']);
+      assert.deepEqual(citations.citationKeysInRanges('[@A; @B]', [{ start: 0, end: 8 }], 'quarto'), ['A', 'B']);
+    });
+
     await check('CAYW preserves formatted text and exports all keys', async () => {
       const text = '\\cite[see][p. 3]{A,B}\\citeyear{C}';
       global.fetch = async (url) => {
@@ -252,6 +263,89 @@ exports.run = async function () {
         const cancelled = pickerModule.showVSCodePicker();
         picker.hide();
         assert.equal(await cancelled, undefined);
+      } finally {
+        picker?.dispose();
+        vscode.window.createQuickPick = createQuickPick;
+      }
+    });
+
+    await check('Command prechecks existing results once and preserves manual deselection', async () => {
+      const document = await file('preselection/main.tex', '\\bibliography{refs}\nOther \\cite{C}\nCurrent \\citep[see][p. 2]{A,B}');
+      await file('preselection/refs.bib', ['A', 'B', 'C'].map(bibEntry).join(''));
+      const before = document.getText();
+      await vscode.window.showTextDocument(document);
+      vscode.window.activeTextEditor.selections = cursor(document, before.indexOf('A,B'));
+      const createQuickPick = vscode.window.createQuickPick;
+      let picker;
+      vscode.window.createQuickPick = (...args) => (picker = createQuickPick(...args));
+      try {
+        global.fetch = async (_url, request) => {
+          const { method, params } = JSON.parse(request.body);
+          assert.equal(method, 'item.search');
+          const citekey = params[0][0][2];
+          return ok([{ citekey, title: citekey, type: 'article' }]);
+        };
+        const command = vscode.commands.executeCommand('extension.zoteroCitationPicker');
+        await waitFor(() => picker);
+        let checked = [];
+        picker.onDidChangeSelection((items) => { checked = items.map((item) => item.detail); });
+        picker.value = 'A';
+        await waitFor(() => checked.includes('A'));
+        picker.selectedItems = [];
+        await waitFor(() => checked.length === 0 && picker.title === 'Zotero — 0 selected');
+        picker.value = 'B';
+        await waitFor(() => checked.includes('B'));
+        picker.value = 'A';
+        await waitFor(() => picker.items.some((item) => item.detail === 'A'));
+        assert.deepEqual(picker.selectedItems.map((item) => item.detail), ['B']);
+        picker.value = 'C';
+        await waitFor(() => picker.items.some((item) => item.detail === 'C'));
+        assert.deepEqual(picker.selectedItems.map((item) => item.detail), ['B']);
+        await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+        await command;
+        assert.equal(document.getText(), before);
+      } finally {
+        picker?.dispose();
+        vscode.window.createQuickPick = createQuickPick;
+      }
+    });
+
+    await check('Enter accepts the first candidate with no checked items and ignores stale search results', async () => {
+      const createQuickPick = vscode.window.createQuickPick;
+      let picker;
+      vscode.window.createQuickPick = (...args) => (picker = createQuickPick(...args));
+      try {
+        for (const keys of [['Only'], ['First', 'Second']]) {
+          global.fetch = async () => ok(keys.map((citekey) => ({ citekey, title: citekey, type: 'article' })));
+          let chosen;
+          const done = pickerModule.showVSCodePicker().then((result) => { chosen = result; });
+          picker.value = 'search';
+          await waitFor(() => !picker.busy && picker.items.length === keys.length);
+          picker.activeItems = keys.length === 1 ? [] : [picker.items[1]];
+          assert.equal(picker.selectedItems.length, 0);
+          await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+          await waitFor(() => chosen);
+          await done;
+          assert.deepEqual(chosen.citekeys, [keys[0]]);
+        }
+
+        global.fetch = async () => ok([{ citekey: 'Old', title: 'Old', type: 'article' }]);
+        let chosen;
+        const done = pickerModule.showVSCodePicker().then((result) => { chosen = result; });
+        picker.value = 'old';
+        await waitFor(() => picker.items.some((item) => item.detail === 'Old'));
+        let finishSearch;
+        global.fetch = () => new Promise((resolve) => { finishSearch = resolve; });
+        picker.value = 'new';
+        await waitFor(() => finishSearch);
+        await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+        assert.equal(chosen, undefined);
+        finishSearch(ok([{ citekey: 'New', title: 'New', type: 'article' }]));
+        await waitFor(() => !picker.busy && picker.items[0]?.detail === 'New');
+        await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+        await waitFor(() => chosen);
+        await done;
+        assert.deepEqual(chosen.citekeys, ['New']);
       } finally {
         picker?.dispose();
         vscode.window.createQuickPick = createQuickPick;

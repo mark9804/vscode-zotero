@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { prepareBibliographyUpdate, resolveBibliographyUri } from "./bibliography";
-import { CitationSelection, citationEdits, formatCitationText } from "./citations";
+import { CitationSelection, citationEdits, citationKeysInRanges, formatCitationText } from "./citations";
 import { showVSCodePicker, showZoteroPicker } from "./picker";
 
 function citationLanguage(document: vscode.TextDocument): string {
@@ -92,7 +92,9 @@ async function showCitationPicker(): Promise<void> {
   const config = vscode.workspace.getConfiguration("zotero-citation-picker", document.uri);
   try {
     const selection = config.get<string>("citeMethod", "vscode") === "vscode"
-      ? await showVSCodePicker()
+      ? await showVSCodePicker(citationKeysInRanges(document.getText(), selections.map((range) => ({
+        start: document.offsetAt(range.start), end: document.offsetAt(range.end),
+      })), citationLanguage(document)))
       : await showZoteroPicker(config.get<string>("port", "http://127.0.0.1:23119/better-bibtex/cayw?format=pandoc"), citationLanguage(document));
     if (selection) {
       await insertCitations(document, selections, version, selection);

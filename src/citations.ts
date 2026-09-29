@@ -30,6 +30,28 @@ export function extractCitationKeys(text: string, languageId: string): string[] 
   return uniqueKeys([...footnotes, ...atKeys]);
 }
 
+export function citationKeysInRanges(
+  source: string,
+  ranges: { start: number; end: number }[],
+  languageId: string,
+): string[] {
+  if (languageId !== "latex") {
+    return uniqueKeys(ranges.flatMap((range) => extractCitationKeys(source.slice(range.start, range.end), languageId)));
+  }
+  const keys: string[] = [];
+  for (const match of latexCitations(source)) {
+    const start = match.index! + match[0].lastIndexOf("{") + 1;
+    const end = start + match[1].length;
+    if (ranges.some((range) =>
+      (range.start >= start && range.end <= end) ||
+      (range.start <= start && range.end >= end),
+    )) {
+      keys.push(...match[1].split(","));
+    }
+  }
+  return uniqueKeys(keys);
+}
+
 export function formatCitation(keys: string[], languageId: string): string {
   keys = uniqueKeys(keys);
   switch (languageId) {

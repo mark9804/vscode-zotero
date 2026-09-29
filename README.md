@@ -40,7 +40,8 @@ You can activate the citation picker either by:
 
 ## Native VS Code Citation Picker Behavior
 
-- Check multiple results, keep searching for more papers, and press Enter to insert the selection. Checked papers stay at the top of the list when the search changes; uncheck a paper to remove it. Pressing Enter without checking anything inserts the highlighted result.
+- Check multiple results, keep searching for more papers, and press Enter to insert all checked papers. Checked papers stay at the top of the list when the search changes; uncheck a paper to remove it from the selection. With nothing checked, wait for the search to finish and press Enter to insert the first result, even when the search field has focus.
+- Citations in the selected text, or in the LaTeX citation key argument containing the cursor, are checked automatically when they first appear in search results. Unchecking them is respected for the rest of that picker session. Existing keys inside a LaTeX citation are still preserved when new keys are added.
 - Simple search: Type any text to search across titles, authors, and other fields
 - Advanced search: Use field-specific searches like:
   - `author:vuorre` - Search by author name
