@@ -82,6 +82,79 @@ exports.run = async function () {
       assert.equal(await pickerModule.showZoteroPicker('http://localhost/cayw', 'latex'), undefined);
     });
 
+    await check('BibTeX fields preserve values, entry keys and supporting directives', async () => {
+      const directives = '@string{venue = "Journal, Series"}\n@preamble{"A preamble"}\n@comment{An export comment}\n';
+      const first = String.raw`@article{FilteredA,
+  title = {A {nested, protected} title},
+  author = "Doe, Jane and {M{\"u}ller}, Anne",
+  journal = venue # " Supplement",
+  year = 2026,
+  month = jul,
+  abstract = {First line,
+    title = {Embedded metadata}
+  },
+}
+`;
+      const second = '@misc{FilteredB, title = {Another title}, note = "A note, with commas", year = {2025}}\n';
+      const source = directives + first + second;
+      const filtered = bibliography.filterBibtexFields(source, [' TITLE ', 'Author', 'journal', 'year']);
+      assert.ok(filtered.startsWith(directives));
+      assert.ok(filtered.includes('title = {A {nested, protected} title}'));
+      assert.ok(filtered.includes(String.raw`author = "Doe, Jane and {M{\"u}ller}, Anne"`));
+      assert.ok(filtered.includes('journal = venue # " Supplement"'));
+      assert.ok(filtered.includes('year = 2026'));
+      assert.ok(filtered.includes('@misc{FilteredB,'));
+      assert.ok(filtered.includes('title = {Another title}'));
+      assert.ok(filtered.includes('year = {2025}'));
+      assert.doesNotMatch(filtered, /\b(?:month|abstract|note)\s*=|Embedded metadata/);
+      assert.deepEqual([...bibliography.bibliographyKeys(filtered, '.bib')], ['FilteredA', 'FilteredB']);
+      assert.equal(bibliography.filterBibtexFields(source, []), source);
+      assert.equal(bibliography.filterBibtexFields('@article{Last, title = {Kept}, abstract = {Dropped}}', ['title']), '@article{Last, title = {Kept},}');
+      assert.throws(() => bibliography.filterBibtexFields('@article{Broken, title = {Truncated}', ['title']), /unterminated BibTeX entry/);
+    });
+
+    await check('Default BibTeX fields filter only newly exported entries', async () => {
+      const document = await file('fields/default.tex', '\\bibliography{default}\nText ');
+      const existing = '@article{Existing, title = {Existing}, abstract = {Keep existing metadata}}\n';
+      const bib = await file('fields/default.bib', existing);
+      const exported = '@misc{New,\n  title = {New title},\n  author = {Doe, Jane},\n  year = 2026,\n  doi = {10.1234/example},\n  abstract = {Remove new metadata},\n}\n';
+      global.fetch = async () => ok(exported);
+      await insertCitations(document, cursor(document), document.version, { citekeys: ['Existing', 'New'] });
+      assert.ok(document.getText().endsWith('\\cite{Existing,New}'));
+      assert.ok(bib.getText().startsWith(existing));
+      const appended = bib.getText().slice(existing.length);
+      assert.ok(appended.includes('@misc{New,'));
+      assert.ok(appended.includes('title = {New title}'));
+      assert.ok(appended.includes('author = {Doe, Jane}'));
+      assert.ok(appended.includes('year = 2026'));
+      assert.doesNotMatch(appended, /\b(?:doi|abstract|journal)\s*=/);
+      assert.equal(await fs.readFile(bib.uri.fsPath, 'utf8'), bib.getText());
+    });
+
+    await check('BibTeX field settings support custom fields and retaining all metadata', async () => {
+      const document = await file('fields/custom.tex', '\\bibliography{custom}\nText ');
+      const bib = await file('fields/custom.bib', '');
+      const config = vscode.workspace.getConfiguration('zotero-citation-picker', bib.uri);
+      const previous = config.inspect('bibtexFields').workspaceFolderValue;
+      const entry = (key) => `@inproceedings{${key},\n  title = {Paper},\n  booktitle = {Conference},\n  year = 2026,\n  doi = {10.1234/example},\n}\n`;
+      try {
+        await config.update('bibtexFields', ['TITLE', 'booktitle', 'doi'], vscode.ConfigurationTarget.WorkspaceFolder);
+        global.fetch = async () => ok(entry('Custom'));
+        await insertCitations(document, cursor(document), document.version, { citekeys: ['Custom'] });
+        assert.ok(bib.getText().includes('title = {Paper}'));
+        assert.ok(bib.getText().includes('booktitle = {Conference}'));
+        assert.ok(bib.getText().includes('doi = {10.1234/example}'));
+        assert.doesNotMatch(bib.getText(), /\byear\s*=/);
+        const before = bib.getText();
+        await config.update('bibtexFields', [], vscode.ConfigurationTarget.WorkspaceFolder);
+        global.fetch = async () => ok(entry('All'));
+        await insertCitations(document, cursor(document), document.version, { citekeys: ['All'] });
+        assert.equal(bib.getText(), before + entry('All'));
+      } finally {
+        await config.update('bibtexFields', previous, vscode.ConfigurationTarget.WorkspaceFolder);
+      }
+    });
+
     let section;
     let bib;
     await check('Section root, unsaved root declaration, batch export and dirty bibliography', async () => {
@@ -222,10 +295,11 @@ exports.run = async function () {
       assert.ok(markdown.getText().includes('\n[^B]:'));
       const quarto = await file('quarto/test.qmd', '---\nbibliography: refs.json\n---\nText ');
       const jsonBib = await file('quarto/refs.json', '[]');
-      global.fetch = async () => ok(JSON.stringify([{ id: 'A', title: 'A' }, { id: 'B', title: 'B' }]));
+      const entries = [{ id: 'A', title: 'A', abstract: 'Keep CSL metadata' }, { id: 'B', title: 'B', DOI: '10.1234/example' }];
+      global.fetch = async () => ok(JSON.stringify(entries));
       await insertCitations(quarto, cursor(quarto), quarto.version, { citekeys: ['A', 'B'], results });
       assert.ok(quarto.getText().endsWith('[@A; @B]'));
-      assert.equal(JSON.parse(jsonBib.getText()).length, 2);
+      assert.deepEqual(JSON.parse(jsonBib.getText()), entries);
       assert.deepEqual([...bibliography.bibliographyKeys('---\nreferences:\n- id: A\n- id: "B"\n...\n', '.yaml')], ['A', 'B']);
       assert.equal(bibliography.mergeBibliography('- id: A\n', '---\nreferences:\n- id: B\n...\n', '.yaml'), '- id: A\n- id: B\n');
     });

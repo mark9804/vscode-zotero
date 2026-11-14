@@ -220,6 +220,65 @@ export function mergeBibliography(content: string, exported: string, extension: 
   return content + (content && !content.endsWith("\n") ? "\n" : "") + exported.trimEnd() + "\n";
 }
 
+export function filterBibtexFields(content: string, fields: string[]): string {
+  if (!fields.length) {
+    return content;
+  }
+  const allowed = new Set(fields.map((field) => field.trim().toLowerCase()));
+  const entries = /@([a-z]+)\s*([{(])/gi;
+  const output: string[] = [];
+  let offset = 0;
+  let entry: RegExpExecArray | null;
+  while ((entry = entries.exec(content))) {
+    output.push(content.slice(offset, entries.lastIndex));
+    const closing = entry[2] === "{" ? "}" : ")";
+    const directive = /^(string|preamble|comment)$/i.test(entry[1]);
+    let start = entries.lastIndex;
+    let first = true;
+    let depth = 0;
+    let quoted = false;
+    let i = start;
+    for (; i < content.length; i++) {
+      const char = content[i];
+      if (char === "\\") {
+        i++;
+        continue;
+      }
+      if (char === "{") {
+        depth++;
+      } else if (char === "}" && depth > 0) {
+        depth--;
+      } else if (char === '"' && depth === 0) {
+        quoted = !quoted;
+      } else if (depth === 0 && !quoted && (char === "," || char === closing)) {
+        // Split only at entry-level delimiters so field values stay verbatim.
+        const part = content.slice(start, i);
+        const name = part.match(/^\s*([^\s=]+)\s*=/)?.[1].toLowerCase();
+        if (first || directive || (name && allowed.has(name))) {
+          output.push(part);
+          if (char === ",") {
+            output.push(char);
+          }
+        } else if (char === closing) {
+          output.push(part.match(/\s*$/)![0]);
+        }
+        start = i + 1;
+        first = false;
+        if (char === closing) {
+          output.push(char);
+          break;
+        }
+      }
+    }
+    if (i >= content.length) {
+      throw new Error("Zotero returned an unterminated BibTeX entry");
+    }
+    offset = entries.lastIndex = i + 1;
+  }
+  output.push(content.slice(offset));
+  return output.join("");
+}
+
 export interface BibliographyUpdate {
   uri: vscode.Uri;
   document?: vscode.TextDocument;
@@ -243,7 +302,13 @@ export async function prepareBibliographyUpdate(
   }
   const translator = extension === ".json" ? "Better CSL JSON"
     : extension === ".yml" || extension === ".yaml" ? "Better CSL YAML" : "Better BibTeX";
-  const exported = await exportBibliography(missing, translator);
+  let exported = await exportBibliography(missing, translator);
+  if (translator === "Better BibTeX") {
+    const fields = vscode.workspace.getConfiguration("zotero-citation-picker", uri).get<string[]>(
+      "bibtexFields", ["title", "author", "journal", "year"],
+    );
+    exported = filterBibtexFields(exported, fields);
+  }
   const returned = bibliographyKeys(exported, extension);
   const absent = missing.filter((key) => !returned.has(key));
   if (absent.length) {

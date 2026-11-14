@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.5.5
+
+- Add `zotero-citation-picker.bibtexFields` to select fields for newly exported BibTeX entries, keeping `title`, `author`, `journal`, and `year` by default. Set it to `[]` to retain all fields.
+
 ## 0.5.4
 
 - Automatically check existing citations from the editor selection or enclosing LaTeX citation when they appear in search results; respect subsequent manual deselection.

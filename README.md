@@ -37,6 +37,17 @@ You can activate the citation picker either by:
   - Zotero picker: Use Zotero's built-in "Cite as you Write" popup window
 - `zotero-citation-picker.port`: Customize the Zotero Better BibTeX URL (only used for Zotero picker mode)
 - `zotero-citation-picker.markdownCitationTemplate`: Customize the Markdown citation text. Available variables: `{{authors}}`, `{{year}}`, `{{title}}`, `{{container}}`. Default to APA style `{{authors}}. ({{year}}). {{title}}. {{container}}.`
+- `zotero-citation-picker.bibtexFields`: Choose which fields to keep in newly exported `.bib` entries. Defaults to `title`, `author`, `journal`, and `year`. Field names are case-insensitive; use `[]` to keep all fields. Existing entries, entry types, and citation keys are preserved. Missing fields are not generated.
+
+For example, set these fields in your user or workspace `settings.json`:
+
+```json
+{
+  "zotero-citation-picker.bibtexFields": ["title", "author", "journal", "year"]
+}
+```
+
+Add `booktitle` for conference papers, or other fields such as `doi`, `volume`, and `pages` as needed by your bibliography style. This setting applies to BibTeX exports; CSL JSON/YAML and Markdown footnotes retain their existing behavior.
 
 ## Native VS Code Citation Picker Behavior
 
